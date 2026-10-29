@@ -1,11 +1,11 @@
 <template>
-  <div class="cal-report" :class="{ 'cal-report-fill': isTransfers }">
+  <div class="cal-report">
     <div class="cal-report-title-row">
       <cal-title :title="reportHeading">
         {{ reportHeading }}
       </cal-title>
-      <!-- The scenario's features, which say nothing of transfers, so not on
-           the Transfer Analyst, which has its own downloads. -->
+      <!-- Hidden on the Transfer Analyst, which has its own downloads; the
+           scenario's features say nothing of transfers. -->
       <cal-geojson-download
         v-if="!isTransfers"
         :data="downloadFeatures"
@@ -13,14 +13,13 @@
       />
     </div>
 
-    <div class="cal-report-header" :class="isTransfers ? 'cal-report-header-tight' : 'block'">
-      <!-- Over the Transfer Analyst, which fills the page, smaller. -->
-      <div class="cal-report-filter-tags" :class="isTransfers ? 'mb-3' : 'mb-4'">
+    <div class="cal-report-header block">
+      <div class="cal-report-filter-tags mb-4">
         <span
           v-for="tag of filterTags"
           :key="tag.label + tag.value"
-          class="tag"
-          :class="[tag.active ? 'is-primary' : 'is-light', { 'is-medium': !isTransfers }]"
+          class="tag is-medium"
+          :class="tag.active ? 'is-primary' : 'is-light'"
         >
           {{ tag.label }}: {{ tag.value }}
         </span>
@@ -73,8 +72,7 @@
       </p>
     </cat-msg>
 
-    <!-- Transfers at one stop or cluster, given by the page: it fills the
-         tab's height, its table scrolling inside. -->
+    <!-- Transfers at one stop or cluster, given by the page. -->
     <slot v-if="isTransfers" name="transfers" />
 
     <cal-datagrid
@@ -185,7 +183,7 @@
         </span>
       </template>
     </cal-datagrid>
-    <div v-if="!isTransfers" class="cal-report-spacer" />
+    <div class="cal-report-spacer" />
   </div>
 </template>
 
@@ -211,8 +209,7 @@ const emit = defineEmits<{
   // Every trip behind a row's count, in the full trip table; for a route's
   // frequency, on the tab that shows how it was worked out.
   openTrips: [subject: TripSubject, tab?: TripDetailsTab]
-  // Transfers at a stop or cluster, in the Transfer Analyst tab, which the
-  // page opens.
+  // Transfers at a stop or cluster, in the Transfer Analyst tab.
   openTransfers: [subject: TripSubject]
 }>()
 
@@ -354,12 +351,12 @@ const reportHeading = computed(() => {
   return `Reports: ${fmtDate(startDate.value, 'dd MMM, yyyy')} - ${fmtDate(endDate.value, 'dd MMM, yyyy')}`
 })
 
+// The report's tabs.
 export type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'stop-clusters' | 'agencies' | 'flex' | 'transfers'
 
 const activeReportTab = defineModel<ReportTab>('tab', { default: 'routes' })
-// The Transfer Analyst fills the tab with its own controls, table, and
-// downloads, in a slot the page fills, and keeps out of the map's display
-// mode.
+// Whether the Transfer Analyst tab is open: it shows the page's slot in place
+// of a table, and has no map display mode.
 const isTransfers = computed(() => activeReportTab.value === 'transfers')
 
 const reportTabLabels: Record<ReportTab, string> = {
@@ -384,8 +381,9 @@ const hasClusterData = computed(() => (props.scenarioFilterResult?.stopClusters?
 // areas shows an empty table instead of hiding the tab.
 const hasFlexData = computed(() => (props.scenarioFilterResult?.flexAreas?.length ?? 0) > 0)
 
-// Sync dataDisplayMode when user switches tabs. Transfer Analyst has no map
-// display mode of its own, so leaves it be, and the mode does not move off it.
+// Sync dataDisplayMode when the user switches tabs. The Transfer Analyst has
+// no display mode of its own, so opening it keeps the current mode, and a mode
+// change doesn't switch away from the Transfer Analyst.
 const modeMap: Partial<Record<ReportTab, DataDisplayMode>> = {
   'routes': 'Transit mode',
   'stops': 'Stop visits',
@@ -402,8 +400,8 @@ watch(activeReportTab, (tab) => {
   }
 })
 
-// Each immediate too, as the tab outlives this component: shown again with
-// its tab gone, it moves off it.
+// Immediate, as the tab (a v-model) outlives this component: remounted with
+// its tab gone, the report switches tabs.
 watch(hasAggregateLayer, (has) => {
   if (!has && activeReportTab.value === 'stops-aggregated') {
     activeReportTab.value = 'stops'
@@ -556,33 +554,10 @@ const activeTableReport = computed((): TableReport => {
     padding-right:20px;
   }
 
-  // The Transfer Analyst tab fills the page's height, rather than growing
-  // past it.
-  .cal-report-fill {
-    min-height: 0;
-    overflow: hidden;
-    padding-bottom: 1rem;
-  }
-
-  // Over a report that fills the page, less space under the tabs.
-  .cal-report-header-tight {
-    margin-bottom: 0.5rem;
-
-    :deep(.tabs) {
-      margin-bottom: 0;
-    }
-  }
-
   .cal-report-title-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-
-    // Smaller than a page title, so the reports below get the room.
-    :deep(h1.title) {
-      font-size: 2rem;
-      margin: 0.75rem 0 0.5rem;
-    }
   }
 
   .cal-report-filter-tags {

@@ -30,13 +30,12 @@ export default defineNuxtConfig({
   modules: [
     '@interline-io/tlv2-auth',
     '@nuxt/eslint',
-    '@nuxt/devtools',
   ],
 
   ssr: false,
 
   devtools: {
-    enabled: isDev,
+    enabled: false,
   },
 
   css: [
@@ -62,6 +61,11 @@ export default defineNuxtConfig({
       },
     },
     public: {
+      // Interline Web App, called from the server with the signed-in user's
+      // access token (its /user_api), and linked to for the user's account.
+      // IWA has no staging, so every environment uses production unless
+      // NUXT_PUBLIC_IWA_BASE_URL points elsewhere.
+      iwaBaseUrl: 'https://app.interline.io',
       tlv2: {
         protomapsApikey: ''
       },

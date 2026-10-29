@@ -1,13 +1,11 @@
 <template>
-  <span class="cal-transfer-trip-tags">
+  <span class="cal-transfer-trip-tags has-text-grey">
     <cat-tooltip
       v-for="tag of tags"
       :key="tag.label"
       :text="`${tag.label}: ${tag.title}`"
-      class="cal-transfer-trip-tag"
-      :class="{ 'cal-transfer-trip-tag-partial': tag.partial }"
     >
-      <cat-icon size="small" :icon="ICONS[tag.kind]" /><span class="is-sr-only">{{ tag.label }}</span>
+      <cat-icon size="small" :icon="ICONS[tag.kind]" :class="{ 'cal-transfer-trip-tag-partial': tag.partial }" /><span class="is-sr-only">{{ tag.label }}</span>
     </cat-tooltip>
   </span>
 </template>
@@ -33,12 +31,10 @@ const ICONS: Record<TransferTripTag['kind'], string> = {
 <style scoped lang="scss">
 .cal-transfer-trip-tags {
   display: inline-flex;
-  gap: 0.1em;
   vertical-align: middle;
-  color: var(--bulma-text-weak);
 }
 
-.cal-transfer-trip-tag-partial :deep(.icon) {
+.cal-transfer-trip-tag-partial {
   opacity: 0.5;
 }
 </style>

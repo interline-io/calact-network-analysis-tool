@@ -8,7 +8,7 @@
  */
 
 import type { TripTableRoute } from './subject-trips'
-import { TRANSFER_GRADES, bearingAndDistance, routeLabel, type TransferArrivalSummary, type TransferGrade, type TransferRouteChoice, type TransferTripDestination } from './transfers'
+import { bearingAndDistance, routeLabel, type TransferArrivalSummary, type TransferGrade, type TransferRouteChoice, type TransferTripDestination } from './transfers'
 
 // A place trips come from (arriving) or go to (departing), and the
 // destinations (transferTripKey) whose trips start or end there.
@@ -171,8 +171,8 @@ export interface TransferRose {
 
 interface RoseTripInfo {
   routes: Map<number, TripTableRoute>
-  from: Map<string, TransferTripDestination & { routeId: number }>
-  to: Map<string, TransferTripDestination & { routeId: number }>
+  from: Map<string, TransferTripDestination>
+  to: Map<string, TransferTripDestination>
 }
 
 /**
@@ -186,14 +186,21 @@ export function transferRose (summaries: TransferArrivalSummary[], compass: { fr
   const fromPlace = placeOf(compass.from)
   const toPlace = placeOf(compass.to)
   const flows: TransferRoseFlow[] = []
+  // The flows' destinations' routes, from the summaries' trips.
+  const routeIds = new Map<string, number>()
   for (const { from, pairs } of summaries) {
     const origin = fromPlace.get(from.key)
     for (const p of pairs) {
       const destination = toPlace.get(p.to.key)
-      const grades = { missed: p.missed, close: p.close, acceptable: p.acceptable, unacceptable: p.unacceptable }
-      const total = TRANSFER_GRADES.reduce((n, g) => n + grades[g], 0)
+      const grades: TransferGradeCounts = { missed: 0, close: 0, acceptable: 0, unacceptable: 0 }
+      for (const g of p.overview.grades) {
+        grades[g.grade] = g.count
+      }
+      const total = p.overview.connections
       if (origin && destination && total > 0) {
         flows.push({ from: origin.key, to: destination.key, fromKey: from.key, toKey: p.to.key, grades, total })
+        routeIds.set(from.key, from.routeId)
+        routeIds.set(p.to.key, p.to.routeId)
       }
     }
   }
@@ -204,9 +211,8 @@ export function transferRose (summaries: TransferArrivalSummary[], compass: { fr
     }
   }
   const trips = (byKey: RoseTripInfo['from'], keys: Set<string>) => new Map([...keys].map((key) => {
-    const d = byKey.get(key)
-    const route = d ? info.routes.get(d.routeId) : undefined
-    return [key, { route: routeLabel(route), agency: route?.agency_name ?? '', label: d?.label ?? '' }] as const
+    const route = info.routes.get(routeIds.get(key)!)
+    return [key, { route: routeLabel(route), agency: route?.agency_name ?? '', label: byKey.get(key)?.label ?? '' }] as const
   }))
   return {
     places: [...places.values()].sort((a, b) => a.bearing - b.bearing),

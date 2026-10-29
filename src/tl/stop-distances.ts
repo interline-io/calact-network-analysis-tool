@@ -4,15 +4,17 @@
 
 import { gql } from 'graphql-tag'
 
+// The directions API mode: a straight line, or the street network.
 export type StopDistanceMode = 'LINE' | 'WALK'
 
+// A stop's id and location.
 export interface StopPoint {
   id: number
   lon: number
   lat: number
 }
 
-// A pair of stops, either way round, as a map key.
+// A pair of stops, in either order, as a map key.
 export function stopPairKey (a: number, b: number): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`
 }
@@ -28,28 +30,27 @@ export function stopPairs (stops: StopPoint[]): [StopPoint, StopPoint][] {
   return pairs
 }
 
-// Pairs per request: one aliased `directions` field each.
-export const STOP_DISTANCE_BATCH_SIZE = 50
-
-// One request for a batch of pairs, each pair an aliased `directions` field
-// with its own waypoint variables.
-export function stopDistancesRequest (pairs: [StopPoint, StopPoint][], mode: StopDistanceMode) {
-  const vars: Record<string, unknown> = { mode }
-  const decls = ['$mode: StepMode!']
-  const fields = pairs.map(([a, b], i) => {
-    decls.push(`$f${i}: WaypointInput!`, `$t${i}: WaypointInput!`)
-    vars[`f${i}`] = { lon: a.lon, lat: a.lat }
-    vars[`t${i}`] = { lon: b.lon, lat: b.lat }
-    return `p${i}: directions(where: {from: $f${i}, to: $t${i}, mode: $mode}) { success distance { distance units } }`
-  })
-  return {
-    query: gql(`query StopDistances(${decls.join(', ')}) {\n  ${fields.join('\n  ')}\n}`),
-    variables: vars,
+// The distance between one pair of points. The API routes one pair per
+// field, so each pair is a request of its own.
+export const stopDistanceQuery = gql`
+query StopDistance($from: WaypointInput!, $to: WaypointInput!, $mode: StepMode!) {
+  directions(where: {from: $from, to: $to, mode: $mode}) {
+    success
+    distance {
+      distance
+      units
+    }
   }
+}`
+
+// The variables for stopDistanceQuery: the two stops' locations and the mode.
+export function stopDistanceVariables (a: StopPoint, b: StopPoint, mode: StopDistanceMode) {
+  return { from: { lon: a.lon, lat: a.lat }, to: { lon: b.lon, lat: b.lat }, mode }
 }
 
-export interface StopDistancesResponse {
-  [alias: string]: {
+// The response to stopDistanceQuery.
+export interface StopDistanceResponse {
+  directions?: {
     success: boolean
     distance?: { distance: number, units: 'KILOMETERS' | 'METERS' | 'MILES' } | null
   } | null
@@ -57,16 +58,10 @@ export interface StopDistancesResponse {
 
 const METERS_PER_UNIT: Record<string, number> = { KILOMETERS: 1000, METERS: 1, MILES: 1609.344 }
 
-// Meters for each pair the server could route, by stopPairKey. A distance in
-// a unit it does not know, or not a number, is left out like an unrouted pair.
-export function parseStopDistances (pairs: [StopPoint, StopPoint][], data: StopDistancesResponse | undefined): Map<string, number> {
-  const meters = new Map<string, number>()
-  pairs.forEach(([a, b], i) => {
-    const d = data?.[`p${i}`]
-    const m = d?.success && d.distance ? d.distance.distance * (METERS_PER_UNIT[d.distance.units] ?? Number.NaN) : Number.NaN
-    if (Number.isFinite(m)) {
-      meters.set(stopPairKey(a.id, b.id), m)
-    }
-  })
-  return meters
+// The pair's meters, where the server could route it; none for an unrouted
+// pair, or a distance in a unit it does not know.
+export function parseStopDistance (data: StopDistanceResponse | undefined): number | undefined {
+  const d = data?.directions
+  const meters = d?.success && d.distance ? d.distance.distance * (METERS_PER_UNIT[d.distance.units] ?? Number.NaN) : Number.NaN
+  return Number.isFinite(meters) ? meters : undefined
 }

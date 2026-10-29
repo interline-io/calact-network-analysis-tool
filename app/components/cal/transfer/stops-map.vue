@@ -19,7 +19,6 @@
     </div>
     <div class="cal-transfer-stops-map-tools">
       <cat-button
-        size="small"
         icon-left="lasso"
         :variant="lassoOn ? 'primary' : undefined"
         v-bind="{ 'aria-pressed': lassoOn }"
@@ -27,16 +26,10 @@
       >
         Lasso
       </cat-button>
-      <cat-button v-if="inView.some(id => !picked.has(id))" size="small" @click="selectInView">
-        Select all in view
-      </cat-button>
-      <cat-button v-if="selected.length > 0" size="small" @click="selected = []">
-        Unselect all
-      </cat-button>
     </div>
-    <p class="cal-transfer-stops-map-hint">
-      <span class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-stop" />Stop</span>
-      <span class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-platform" />Platform</span>
+    <p class="cal-transfer-stops-map-hint mt-2 has-text-grey">
+      <span class="cal-transfer-stops-map-key"><cat-icon size="small" icon="circle-outline" />Stop</span>
+      <span class="cal-transfer-stops-map-key"><cat-icon size="small" icon="square-rounded-outline" />Platform</span>
       <span v-if="routes.length > 0" class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-route" />Route at a picked stop</span>
       <span v-if="routes.length > 0" class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-route cal-transfer-stops-map-key-route-other" />Other route</span>
       <span v-if="extent.length > 0" class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-extent" />Query area</span>
@@ -48,7 +41,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as maplibre from 'maplibre-gl'
-import { escapeHtml } from '~~/src/core'
+import { TRANSFER_PICKED_COLOR, TRANSFER_UNPICKED_COLOR, escapeHtml, isPolygonal, mergePolygons, polygonBbox } from '~~/src/core'
 import { basemapStyle } from '~/utils/basemap'
 import { useRuntimeConfig } from '#imports'
 
@@ -60,7 +53,7 @@ export interface TransferMapStop {
   operator: string
   routes: string
   platform: boolean
-  // The routes that serve it.
+  // The stop's routes.
   routeIds: number[]
   lon: number
   lat: number
@@ -81,8 +74,8 @@ const props = defineProps<{
   stops: TransferMapStop[]
   // The routes at those stops.
   routes: TransferMapRoute[]
-  // The query's area, outlined, as no stops outside it are loaded; and the
-  // map pans no further than a little past it.
+  // The query's area, outlined since no stops outside the area are loaded;
+  // the map pans only a little past the area.
   extent: GeoJSON.Feature[]
   // What the map frames when it changes: the subject, say, rather than each
   // stop added.
@@ -122,10 +115,10 @@ function stopFeatures (): GeoJSON.FeatureCollection {
   }
 }
 
-// The layers' filters: the stops picked, and the rest.
-function pickedFilter (picked: boolean): maplibre.FilterSpecification {
-  const isPicked: maplibre.FilterSpecification = ['in', ['get', 'id'], ['literal', selected.value]]
-  return picked ? isPicked : ['!', isPicked]
+// A layer's filter: the features whose id is among the ids, or the rest.
+function idFilter (ids: number[], among: boolean): maplibre.FilterSpecification {
+  const isAmong: maplibre.FilterSpecification = ['in', ['get', 'id'], ['literal', ids]]
+  return among ? isAmong : ['!', isAmong]
 }
 
 // Every route's line, set on the map only when the routes change.
@@ -135,7 +128,7 @@ function routeFeatures (): GeoJSON.FeatureCollection {
     features: props.routes.map(r => ({
       type: 'Feature',
       geometry: r.geometry,
-      properties: { id: r.id, name: r.name, operator: r.operator, color: r.color ? `#${r.color}` : UNPICKED },
+      properties: { id: r.id, name: r.name, operator: r.operator, color: r.color ? `#${r.color}` : TRANSFER_UNPICKED_COLOR },
     })),
   }
 }
@@ -145,31 +138,17 @@ const pickedRoutes = computed(() => {
   const picked = new Set(selected.value)
   return [...new Set(props.stops.filter(s => picked.has(s.id)).flatMap(s => s.routeIds))]
 })
-function routeFilter (picked: boolean): maplibre.FilterSpecification {
-  const isPicked: maplibre.FilterSpecification = ['in', ['get', 'id'], ['literal', pickedRoutes.value]]
-  return picked ? isPicked : ['!', isPicked]
-}
 
 // The extent's bounding box, padded by a fifth of its size (and at least
 // about 500 m), for the map's panning bounds; none without an extent.
 function extentBounds (): maplibre.LngLatBounds | undefined {
-  const b = new maplibre.LngLatBounds()
-  const visit = (c: any) => {
-    if (typeof c[0] === 'number') {
-      b.extend([c[0], c[1]])
-    } else {
-      c.forEach(visit)
-    }
-  }
-  for (const f of props.extent) {
-    visit((f.geometry as { coordinates?: unknown }).coordinates ?? [])
-  }
-  if (b.isEmpty()) {
+  const b = polygonBbox(mergePolygons(props.extent.map(f => f.geometry).filter(isPolygonal)))
+  if (!b) {
     return undefined
   }
-  const padLon = Math.max((b.getEast() - b.getWest()) / 5, 0.006)
-  const padLat = Math.max((b.getNorth() - b.getSouth()) / 5, 0.0045)
-  return new maplibre.LngLatBounds([b.getWest() - padLon, b.getSouth() - padLat], [b.getEast() + padLon, b.getNorth() + padLat])
+  const padLon = Math.max((b.ne.lon - b.sw.lon) / 5, 0.006)
+  const padLat = Math.max((b.ne.lat - b.sw.lat) / 5, 0.0045)
+  return new maplibre.LngLatBounds([b.sw.lon - padLon, b.sw.lat - padLat], [b.ne.lon + padLon, b.ne.lat + padLat])
 }
 
 function updateExtent () {
@@ -193,14 +172,14 @@ function updateRoutes () {
 
 function updatePicked () {
   if (map?.getLayer('stops-picked')) {
-    map.setFilter('stops', pickedFilter(false))
-    map.setFilter('stops-picked', pickedFilter(true))
-    map.setFilter('routes', routeFilter(false))
-    map.setFilter('routes-picked', routeFilter(true))
+    map.setFilter('stops', idFilter(selected.value, false))
+    map.setFilter('stops-picked', idFilter(selected.value, true))
+    map.setFilter('routes', idFilter(pickedRoutes.value, false))
+    map.setFilter('routes-picked', idFilter(pickedRoutes.value, true))
   }
 }
 
-// The picked stops framed, close enough to tell platforms apart.
+// Frames the picked stops, close enough to tell platforms apart.
 function fit () {
   if (!map) {
     return
@@ -221,34 +200,21 @@ function toggle (id: number) {
   selected.value = selected.value.includes(id) ? selected.value.filter(x => x !== id) : [...selected.value, id]
 }
 
-// The map's view, west, south, east, north; and the stops in it.
-const bounds = ref<[number, number, number, number]>()
-const picked = computed(() => new Set(selected.value))
-const inView = computed(() => {
-  const v = bounds.value
-  return v ? props.stops.filter(s => s.lon >= v[0] && s.lat >= v[1] && s.lon <= v[2] && s.lat <= v[3]).map(s => s.id) : []
-})
-function selectInView () {
-  selected.value = [...new Set([...selected.value, ...inView.value])]
-}
-
+// The map's view, west, south, east, north, for the list.
 function emitView () {
   const b = map?.getBounds()
   if (b) {
-    bounds.value = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]
-    emit('view', bounds.value)
+    emit('view', [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])
   }
 }
 
-// A marker: a circle for a stop, a rounded square for a platform; filled
-// when picked, hollow otherwise.
 const MARKER_SIZE = 20
 // As close as the map goes, a few meters across a marker; and as far out,
 // a couple of kilometers across, past any walk between stops.
 const MAX_ZOOM = 21
 const MIN_ZOOM = 14
-const PICKED = '#7a4dda'
-const UNPICKED = '#5b6470'
+// A marker: a circle for a stop, a rounded square for a platform; filled
+// when picked, white otherwise.
 function marker (platform: boolean, picked: boolean): ImageData {
   const ratio = 2
   const size = MARKER_SIZE * ratio
@@ -263,10 +229,10 @@ function marker (platform: boolean, picked: boolean): ImageData {
   } else {
     ctx.arc(size / 2, size / 2, size / 2 - inset, 0, Math.PI * 2)
   }
-  ctx.fillStyle = picked ? PICKED : '#ffffff'
+  ctx.fillStyle = picked ? TRANSFER_PICKED_COLOR : '#ffffff'
   ctx.fill()
   ctx.lineWidth = 2 * ratio
-  ctx.strokeStyle = picked ? '#ffffff' : UNPICKED
+  ctx.strokeStyle = picked ? '#ffffff' : TRANSFER_UNPICKED_COLOR
   ctx.stroke()
   return ctx.getImageData(0, 0, size, size)
 }
@@ -276,7 +242,7 @@ function stopHtml (p: Record<string, any>): string {
   return [
     `<strong>${escapeHtml(String(p.name ?? ''))}</strong>${p.platform ? ' (platform)' : ''}`,
     p.operator ? escapeHtml(String(p.operator)) : '',
-    p.routes ? `<span class="cal-transfer-stops-map-routes">${escapeHtml(String(p.routes))}</span>` : '',
+    p.routes ? `<span class="has-text-grey">${escapeHtml(String(p.routes))}</span>` : '',
   ].filter(Boolean).join('<br>')
 }
 
@@ -307,12 +273,14 @@ function routesAt (m: maplibre.Map, e: maplibre.MapMouseEvent): string {
 // drawn on top of one another.
 function chooserContent (features: maplibre.MapGeoJSONFeature[]): HTMLElement {
   const root = document.createElement('div')
-  root.className = 'cal-transfer-stops-map-chooser'
+  root.className = 'is-flex is-flex-direction-column is-gap-1'
   const picked = new Set(selected.value)
   for (const f of features) {
     const id = f.properties?.id as number
     const label = document.createElement('label')
+    label.className = 'checkbox is-flex is-align-items-flex-start is-gap-1'
     const box = document.createElement('input')
+    box.className = 'mt-1'
     box.type = 'checkbox'
     box.checked = picked.has(id)
     box.addEventListener('change', () => toggle(id))
@@ -353,6 +321,12 @@ function initMap () {
     zoom: 15,
     maxZoom: MAX_ZOOM,
     minZoom: MIN_ZOOM,
+    // The buttons zoom, not the wheel, a double click, a box, or a pinch, so
+    // scrolling the page across the map never zooms the map.
+    scrollZoom: false,
+    doubleClickZoom: false,
+    boxZoom: false,
+    touchZoomRotate: false,
     center: [-122.4, 45.5],
     // The map data's credits only, not MapLibre's own, which the control
     // adds by default.
@@ -371,7 +345,7 @@ function initMap () {
         id: picked ? 'routes-picked' : 'routes',
         type: 'line',
         source: 'routes',
-        filter: routeFilter(picked),
+        filter: idFilter(pickedRoutes.value, picked),
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
           'line-color': ['get', 'color'],
@@ -386,7 +360,7 @@ function initMap () {
       id: 'extent',
       type: 'line',
       source: 'extent',
-      paint: { 'line-color': '#5b6470', 'line-width': 1.5, 'line-dasharray': [3, 2], 'line-opacity': 0.8 },
+      paint: { 'line-color': TRANSFER_UNPICKED_COLOR, 'line-width': 1.5, 'line-dasharray': [3, 2], 'line-opacity': 0.8 },
     })
     m.setMaxBounds(extentBounds() ?? null)
     m.addSource('stops', { type: 'geojson', data: stopFeatures() })
@@ -403,9 +377,9 @@ function initMap () {
       filter: ['==', ['get', 'id'], -1],
       paint: {
         'circle-radius': 16,
-        'circle-color': PICKED,
+        'circle-color': TRANSFER_PICKED_COLOR,
         'circle-opacity': 0.25,
-        'circle-stroke-color': PICKED,
+        'circle-stroke-color': TRANSFER_PICKED_COLOR,
         'circle-stroke-width': 2,
       },
     })
@@ -416,7 +390,7 @@ function initMap () {
         id: picked ? 'stops-picked' : 'stops',
         type: 'symbol',
         source: 'stops',
-        filter: pickedFilter(picked),
+        filter: idFilter(selected.value, picked),
         layout: {
           'icon-image': ['concat', 'marker-', ['case', ['get', 'platform'], 'platform', 'stop'], picked ? '-picked' : '-other'],
           'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.7, 16, 1, 18, 1.2],
@@ -425,11 +399,9 @@ function initMap () {
         },
       })
     }
-    // No names drawn: they crowd a station's stops. Hovering a stop, or its
-    // row in the list, names it.
-    // Several stops under the pointer are listed together. Clicking one picks
-    // it; clicking several zooms in on them, to set them apart, and once
-    // zoomed all the way in, opens a list to pick among them.
+    // Hovering names a stop, as names drawn on the map would crowd a
+    // station's stops. A click on one stop toggles that stop; on several, it
+    // zooms in to set them apart, and at full zoom lists them with checkboxes.
     let hovered: number | undefined
     let hoveredRoutes = ''
     m.on('mousemove', (e) => {
@@ -519,8 +491,8 @@ function moveLasso (e: PointerEvent) {
     lassoPoints.value.push(point(e))
   }
 }
-// The stops inside the lasso, by where the map draws them, added to those
-// picked; then the map pans again.
+// Adds the stops inside the lasso, by where the map draws them, to those
+// picked, and turns the lasso off so a drag pans the map again.
 function endLasso () {
   if (!drawing) {
     return
@@ -574,8 +546,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-@import 'maplibre-gl/dist/maplibre-gl';
-
 .cal-transfer-stops-map {
   position: relative;
   min-width: 0;
@@ -603,8 +573,8 @@ onBeforeUnmount(() => {
   z-index: 2;
 
   polygon {
-    fill: rgba(122, 77, 218, 0.15);
-    stroke: #7a4dda;
+    fill: color-mix(in srgb, v-bind(TRANSFER_PICKED_COLOR) 15%, transparent);
+    stroke: v-bind(TRANSFER_PICKED_COLOR);
     stroke-width: 2;
     stroke-dasharray: 4 3;
   }
@@ -615,62 +585,26 @@ onBeforeUnmount(() => {
   top: 0.5rem;
   left: 0.5rem;
   z-index: 3;
-  display: flex;
-  gap: 0.35rem;
-}
-
-:deep(.cal-transfer-stops-map-chooser) {
-  display: grid;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-
-  label {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.4rem;
-    cursor: pointer;
-  }
-
-  input {
-    margin-top: 0.2rem;
-  }
-}
-
-:deep(.cal-transfer-stops-map-routes) {
-  color: #5b6470;
 }
 
 .cal-transfer-stops-map-hint {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.75rem;
-  margin: 0.25rem 0 0;
-  font-size: 0.75rem;
-  color: var(--bulma-text-weak);
+  gap: 0.5rem 1rem;
 }
 
-// The legend's shapes, as the map draws them, unpicked.
+// The legend's swatches, as the map draws them.
 .cal-transfer-stops-map-key {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
 }
 
-.cal-transfer-stops-map-key-stop,
-.cal-transfer-stops-map-key-platform {
-  display: inline-block;
-  width: 0.65rem;
-  height: 0.65rem;
-  border: 2px solid #5b6470;
-  background: #ffffff;
-}
-
 .cal-transfer-stops-map-key-route {
-  display: inline-block;
   width: 1rem;
   height: 2px;
-  background: #5b6470;
+  background: v-bind(TRANSFER_UNPICKED_COLOR);
   opacity: 0.5;
 }
 
@@ -680,16 +614,7 @@ onBeforeUnmount(() => {
 }
 
 .cal-transfer-stops-map-key-extent {
-  display: inline-block;
   width: 1rem;
-  border-top: 2px dashed #5b6470;
-}
-
-.cal-transfer-stops-map-key-stop {
-  border-radius: 50%;
-}
-
-.cal-transfer-stops-map-key-platform {
-  border-radius: 2px;
+  border-top: 2px dashed v-bind(TRANSFER_UNPICKED_COLOR);
 }
 </style>

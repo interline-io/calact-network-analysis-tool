@@ -36,11 +36,19 @@
             :map-extent-center="mapExtentCenter"
             :census-geographies-selected="censusGeographiesSelected"
             :scenario-loaded="!!scenarioData"
+            :query-polygon="queryPolygon"
+            :saved-geography-access="savedGeographyAccess"
+            :saved-geography-loading="savedGeographyLoading"
+            :saved-selection-runnable="savedSelectionRunnable"
+            :saved-selection-kind="savedSelectionKind"
+            :account-has-saved-boundaries="accountHasSavedBoundaries"
+            :saved-geography-messages="queryGeographyMessages"
             @explore="runQuery"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
             @reset-scenario="resetScenario"
             @fit-to-geographies="fitToGeographies"
             @clear-geographies="clearGeographies"
+            @upload-saved="rememberSavedGeography($event.id, $event.name, $event.polygon)"
           />
         </div>
 
@@ -52,6 +60,7 @@
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
             :census-geographies-selected="censusGeographiesSelected"
+            :query-area-name="queryAreaName"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :aggregate-geo-count="aggregateGeoCount"
             :aggregate-layer-label="aggregateLayerLabel"
@@ -83,11 +92,11 @@
                 v-model:settings="transfers.settings"
                 :title="transfers.title"
                 :subject-options="transfers.subjectOptions"
-                :custom-subject="transfers.customSubject"
+                :custom-from="transfers.customFrom"
                 :share-url="transferShareUrl"
                 :stops="transfers.stopIds"
-                :map-stops="transfers.mapStops"
-                :map-routes="transfers.mapRoutes"
+                :map-stops="transferSection === 'stops' ? transfers.mapStops : []"
+                :map-routes="transferSection === 'stops' ? transfers.mapRoutes : []"
                 :extent="transferExtent"
                 :clustering-off="clusterDistance === 0"
                 :breakpoints="transfers.breakpoints"
@@ -128,6 +137,7 @@
         <!-- This is a component for displaying the map and legend -->
         <cal-map
           :census-geographies-selected="censusGeographiesSelected"
+          :query-polygon="queryPolygon"
           :viewport-geographies="viewportGeographies"
           :scenario-filter-result="scenarioFilterResult"
           :display-edit-bbox-mode="displayEditBboxMode"
@@ -266,17 +276,18 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, defineAsyncComponent, reactive, ref, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
 import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel'
 import type { TripDetailsTab } from '~/components/cal/trip-details.vue'
-import type { TransferReportSection, TransferReportView } from '~/components/cal/transfer-report.vue'
+import type { TransferReportSection, TransferReportView } from '~/components/cal/transfer/report.vue'
 import type { ReportTab } from '~/components/cal/report.vue'
 import { transferSubjectFromKey, transferSubjectKey, useSubjectTransfers, type TransferStopEdits } from '~/composables/useSubjectTransfers'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
+import { useQueryGeography } from '~/composables/useQueryGeography'
 import { useFetchMode } from '~/composables/useFetchMode'
 import {
   geographyLayerQuery,
@@ -381,9 +392,9 @@ function clearScenario () {
   clearAllResults()
 }
 
-// Reset to start a new query, the Transfer Analyst over too. Apart from
-// clearScenario, which the leave guard also calls, as a URL write there would
-// cancel the navigation it just allowed.
+// Resets the query and the Transfer Analyst for a new query. Kept apart from
+// clearScenario, which the leave guard also calls: a URL write there would
+// cancel the navigation the guard just allowed.
 function resetScenario () {
   clearScenario()
   setQuery({ transferAt: undefined, transferStops: undefined, transferDate: undefined })
@@ -484,7 +495,23 @@ const agencyFilterItems = computed((): AgencyFilterItem[] => {
 // Geography datasets
 /////////////////
 
-const { censusGeographyLayerOptions, censusGeographiesSelected } = useCensusGeographyLayers()
+// The query area from a saved or uploaded boundary, and the census
+// geographies it (or the Administrative boundaries mode) names. The geoid
+// check reads the census geographies, so it takes them lazily.
+const {
+  savedGeographyAccess,
+  savedGeographyLoading,
+  savedSelectionRunnable,
+  savedSelectionKind,
+  accountHasSavedBoundaries,
+  queryPolygon,
+  queryGeographyIds,
+  queryAreaName,
+  queryGeographyMessages,
+  savedGeographyLoads,
+  rememberSavedGeography,
+} = useQueryGeography(() => censusGeographiesSelected.value)
+const { censusGeographyLayerOptions, censusGeographiesSelected } = useCensusGeographyLayers(queryGeographyIds)
 
 const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
 
@@ -738,9 +765,20 @@ function fitToGeographies () {
 
 // A newly picked geography's geometry arrives after geographyIds changes, so
 // a fit request waits until censusGeographiesSelected matches the selection.
+// An uploaded or saved polygon is ready once it's there.
 const selectedGeographiesLoaded = computed(() => {
+  if (queryPolygon.value) {
+    return true
+  }
   const loaded = new Set(censusGeographiesSelected.value.map(g => g.id))
-  return loaded.size === geographyIds.value.length && geographyIds.value.every(id => loaded.has(id))
+  return loaded.size === queryGeographyIds.value.length && queryGeographyIds.value.every(id => loaded.has(id))
+})
+// Loading a saved geography, or a changed upload, shows it, as picking a
+// boundary from the search does
+watch([savedGeographyLoads, queryPolygon], ([loads, polygon], [prevLoads, prevPolygon]) => {
+  if (loads !== prevLoads || (polygon && polygon !== prevPolygon)) {
+    fitToGeographies()
+  }
 })
 watch([geographyFitPending, selectedGeographiesLoaded], ([pending, loaded]) => {
   if (pending && loaded) {
@@ -825,7 +863,9 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   bbox: bbox.value,
   startDate: startDate.value,
   endDate: endDate.value,
-  geographyIds: geographyIds.value,
+  geographyIds: queryGeographyIds.value,
+  // An uploaded or saved area, in place of the bbox and geographyIds
+  polygon: queryPolygon.value,
   // Data loading toggles from Query tab > Advanced Settings
   includeFixedRoute: includeFixedRoute.value,
   includeFlexAreas: includeFlexAreas.value,
@@ -940,13 +980,17 @@ watch([() => tripTable.trips, showTripTable, tripTableTab], () => {
   }
 })
 
-// Transfers at a stop or cluster, in the Reports tab's Transfer Analyst: picked
-// there, or opened from the trip panel or a Stop Clusters row.
+// Transfers at a stop or cluster, in the Reports tab's Transfer Analyst:
+// picked there, or opened from a map popup, the trip panel, or a Stop
+// Clusters row.
 const reportTab = ref<ReportTab>('routes')
-// The stop or cluster ("transferAt"), and the stops added to or taken from
-// its own ("transferStops", as "+id" and "-id"), are in the URL, so a link
-// shares the analysis. A new subject starts from its own stops, and with
-// no trips filtered out, as the last one's routes may also serve it.
+// Loaded when first shown, as it brings Observable Plot, which no other view
+// uses.
+const CalTransferReport = defineAsyncComponent(() => import('~/components/cal/transfer/report.vue'))
+// The subject ("transferAt") and its stop edits ("transferStops": "+id",
+// "-id") live in the URL, so a link shares the analysis. A new subject starts
+// from its own stops and clears the trip filters, which could also hide its
+// trips.
 const transferSubject = computed({
   get: () => query.value.transferAt?.toString() ?? '',
   set: (v: string) => {
@@ -984,8 +1028,7 @@ const transfers = reactive(useSubjectTransfers({
   stopEdits: transferStopEdits,
   selectedDate: transferDate,
 }, tripDetailsStore))
-// The query's area, as the stops map outlines it: the chosen boundaries, or
-// the bounding box.
+// The query's area: the chosen boundaries, or the bounding box.
 const transferExtent = computed((): GeoJSON.Feature[] => {
   if (geographyIds.value.length > 0) {
     return (censusGeographiesSelected.value || [])
@@ -1002,10 +1045,10 @@ const transferExtent = computed((): GeoJSON.Feature[] => {
 const transferView = ref<TransferReportView>('summary')
 // The Compass view's flows, worked out only while it shows.
 const EMPTY_ROSE: TransferRose = { places: [], flows: [], from: new Map(), to: new Map() }
-const transferSection = ref<TransferReportSection | undefined>('trips')
-// A link to the analysis as shown: the URL, which holds the subject, its
-// stops, the date, and the times; and besides, its view and its settings
-// where not the defaults, which are read back once when the link is opened.
+const transferSection = ref<TransferReportSection>()
+// A link to the analysis as shown: the current URL, which holds the subject,
+// its stops, the date, and the times, plus the view and any settings that
+// differ from the defaults, read once when the link opens.
 function transferShareUrl (): string {
   const url = new URL(window.location.href)
   const settings = encodeTransferSettings(transfers.settings)
@@ -1031,20 +1074,21 @@ if (query.value.transferView || query.value.transferSettings) {
 if (query.value.transferAt) {
   reportTab.value = 'transfers'
 }
-// Stop clustering on at its default distance; the clusters alone are then
-// fetched again, the rest of the scenario kept.
+// Turns stop clustering on at its default distance, which refetches only the
+// clusters and keeps the rest of the scenario.
 function enableClustersForTransfers () {
   clusterDistance.value = STOP_CLUSTER_DEFAULT_DISTANCE
 }
-// Entered from a cluster, Stops & platforms opens first, as a cluster's
-// stops are the first thing to check.
+// Opens the Transfer Analyst at a subject. A cluster opens Stops & platforms,
+// as its stops are the first thing to check; a stop leaves the settings
+// closed.
 function openTransfers (subject: TripSubject) {
   // The same subject again keeps its stop edits.
   const key = transferSubjectKey(subject)
   if (key !== transferSubject.value) {
     transferSubject.value = key
   }
-  transferSection.value = subject.kind === 'cluster' ? 'stops' : 'trips'
+  transferSection.value = subject.kind === 'cluster' ? 'stops' : undefined
   reportTab.value = 'transfers'
   activeTab.value = { tab: 'report', sub: '' }
 }
@@ -1229,10 +1273,10 @@ useClusterRefetch({
   fetchMode,
 })
 
-// A Transfer Analyst subject the loaded scenario does not have, as from a
-// link made for another area or older data, is dropped with its stop edits
-// once the scenario has finished loading. Its stops and clusters as loaded,
-// not as filtered, so a filter leaving the subject without service keeps it.
+// Once the scenario finishes loading, drop a Transfer Analyst subject it
+// lacks (from a link for another area or older data, say), with its stop
+// edits. Check the stops and clusters as loaded, not as filtered, so a
+// subject that a filter leaves without service stays.
 watch(() => [scenarioData.value, scenarioData.value?.stops.length, scenarioData.value?.stopClusters?.length, runInFlight.value, refetchInFlight.value] as const, ([data, _stops, _clusters, running, refetching]) => {
   const subject = transferSubjectFromKey(transferSubject.value)
   if (!subject || !data || running > 0 || refetching > 0) {

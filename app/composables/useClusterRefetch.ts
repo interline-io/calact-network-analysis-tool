@@ -5,6 +5,7 @@
 
 import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
+import { queryArea } from '~~/src/core'
 import { phaseEnabled, type FeedVersionRef, type StopClusterFetchConfig } from '~~/src/scenario'
 
 // scenarioReceiver is created by useScenarioRun and shared so refetched
@@ -38,8 +39,7 @@ export function useClusterRefetch (deps: UseClusterRefetchDeps): void {
       }))
       const body: StopClusterFetchConfig = {
         feedVersions,
-        bbox: config.bbox,
-        geographyIds: config.geographyIds,
+        ...queryArea(config),
         geoDatasetName: config.geoDatasetName,
         maxDistanceMeters: clusterDistance.value,
         stopLimit: config.stopLimit,

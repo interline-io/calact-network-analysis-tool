@@ -50,20 +50,21 @@ describe('transferCompassPlaces', () => {
 
 describe('transferRose', () => {
   const ref = (key: string) => ({ key, routeId: 1, directionId: 0 })
+  // A pair's connections by grade, in its overview.
+  const pair = (key: string, missed: number, close: number) => ({
+    to: ref(key),
+    overview: { connections: missed + close, grades: [{ grade: 'missed', count: missed }, { grade: 'close', count: close }] },
+  })
   const summaries = [{
     from: ref('in'),
     overview: { grades: [] },
-    pairs: [
-      { to: ref('north'), missed: 1, close: 2, acceptable: 0, unacceptable: 0 },
-      { to: ref('south'), missed: 0, close: 1, acceptable: 0, unacceptable: 0 },
-      { to: ref('unplaced'), missed: 0, close: 5, acceptable: 0, unacceptable: 0 },
-    ],
+    pairs: [pair('north', 1, 2), pair('south', 0, 1), pair('unplaced', 0, 5)],
   }] as unknown as TransferArrivalSummary[]
   const place = (name: string, bearing: number, keys: string[]) => ({ key: name, name, bearing, km: 10, keys, count: 1 })
   const compass = { from: [place('San Jose', 135, ['in'])], to: [place('San Francisco', 0, ['north']), place('Tamien', 140, ['south'])] }
   const info = {
     routes: new Map([[1, { route_id: 'R1', route_short_name: 'Local', agency_name: 'Caltrain' }]]),
-    from: new Map([['in', { ...destination('in', 1, {}), label: 'San Francisco', routeId: 1 }]]),
+    from: new Map([['in', { ...destination('in', 1, {}), label: 'San Francisco' }]]),
     to: new Map(),
   }
 

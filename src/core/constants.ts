@@ -106,8 +106,25 @@ export const WEEKDAY_BY_GETDAY: readonly Weekday[] = [
 export const geomSources = {
   mapExtent: 'Covering extent of map',
   bbox: 'Dragging bounding box',
-  adminBoundary: 'Administrative Boundary',
+  adminBoundary: 'Administrative boundaries (US Census)',
+  custom: 'Saved or uploaded boundaries',
 } as const
+
+// Uploaded geographies (#477) are cleaned up before use, unless the user turns
+// a step off. NAT analyses gain little from survey-grade outlines, and every
+// request in a run carries the polygon.
+//
+// Decimal places kept in each coordinate: 5 is about 1 m.
+export const UPLOAD_COORDINATE_PRECISION = 5
+// Visvalingam simplifying threshold, as the area in square degrees of the
+// triangle a position makes with its neighbors: 1e-7 is about 850 m² at these
+// latitudes, such as a 15 m jog in 115 m of border.
+export const UPLOAD_SIMPLIFY_MIN_WEIGHT = 1e-7
+// Larger files aren't read at all.
+export const UPLOAD_MAX_FILE_BYTES = 50 * 1024 * 1024
+// The largest geography that can be saved: Interline stores saved geographies
+// as documents of at most 2 MB, less room for the rest of the document.
+export const SAVED_GEOGRAPHY_MAX_BYTES = 1.9 * 1024 * 1024
 
 export const routeColorModes = [
   'Mode',
@@ -169,12 +186,12 @@ export const MIN_GAPS_FOR_IRREGULAR = 3
 // than this ratio (1.5 = one direction's average gap is at least 50% longer).
 export const FREQUENCY_DIRECTION_DIVERGENCE_RATIO = 1.5
 
-// Transfer grades, by wait in seconds after walking time: missed from -5 to 0
-// minutes, close to 6, acceptable to 10, unacceptable to 20. A connection
-// outside -5 to 20 minutes is not a transfer.
+// The default transfer grade breakpoints, in seconds of wait after walking:
+// missed from -5 to 0 minutes, close to 6, acceptable to 10, unacceptable to
+// 20. A connection outside -5 to 20 minutes is not a transfer.
 export const TRANSFER_GRADE_BREAKPOINTS = [-5 * 60, 0, 6 * 60, 10 * 60, 20 * 60] as const
-// Walking time between two different stops, per meter of distance between
-// them: 1 second, about 3.6 km/h (2.2 mph), as Transfer Analyst assumes.
+// The default walking time per meter between two different stops: 1 second,
+// about 3.6 km/h (2.2 mph).
 export const TRANSFER_WALK_SECONDS_PER_METER = 1
 
 export const DEFAULT_TIME_WINDOW = {
@@ -342,6 +359,11 @@ export const FARE_MIN_DEFAULT = 1
 // distinct from the agency/mode palette. Single source of truth: map layers read
 // it directly; legend.vue / map-popup.vue bind it into CSS via v-bind (no manual sync).
 export const STOP_CLUSTER_COLOR = '#d6336c'
+
+// The Transfer Analyst's stops map colors: a picked stop's, and an unpicked
+// stop's or route's.
+export const TRANSFER_PICKED_COLOR = '#7a4dda'
+export const TRANSFER_UNPICKED_COLOR = '#5b6470'
 
 export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
   'state': { singular: 'State', plural: 'states' },
