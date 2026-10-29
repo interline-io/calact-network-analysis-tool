@@ -79,7 +79,7 @@
 <script setup lang="ts">
 import { ref, computed, toRaw, watch, toRef } from 'vue'
 import { useToggle } from '@vueuse/core'
-import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById, vehiclePosition, type VehicleTrack } from '~~/src/tl'
+import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById, vehiclePosition, type VehicleShape, type VehicleTrack } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo, QueryPolygon } from '~~/src/core'
 import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
 import { buildStyleData, buildTrailSegments, clusterDisplayName, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TrailSegments, type TripSubject } from '~~/src/scenario'
@@ -753,6 +753,11 @@ function vehicleTracks (): VehicleTrack[] {
   return showVehicles.value ? props.scenarioFilterResult?.vehicleTracks || [] : []
 }
 
+// The shapes those tracks follow, by id; read the same way.
+function vehicleShapes (): Map<number, VehicleShape> {
+  return props.scenarioFilterResult?.vehicleShapes || new Map()
+}
+
 // Each marked route's color on the map, which its vehicles share. Routes the
 // filters leave out run no vehicles.
 const vehicleRouteColors = computed((): Map<number, string> => {
@@ -776,13 +781,15 @@ const vehicleFeatures = computed((): Feature[] => {
     return []
   }
   const colors = vehicleRouteColors.value
+  const shapes = vehicleShapes()
   const out: Feature[] = []
   for (const track of vehicleTracks()) {
     const color = colors.get(track.routeId)
-    if (!color) {
+    const shape = shapes.get(track.shapeId)
+    if (!color || !shape) {
       continue
     }
-    const position = vehiclePosition(track, time)
+    const position = vehiclePosition(track, shape, time)
     if (!position) {
       continue
     }
@@ -797,14 +804,15 @@ const vehicleFeatures = computed((): Feature[] => {
   return out
 })
 
-// The trails behind those vehicles, rebuilt when the tracks or the filters
-// change rather than every frame.
+// The trails behind those vehicles, rebuilt every frame along the shapes.
 const vehicleTrails = computed((): TrailSegments | undefined => {
   const tracks = vehicleTracks()
-  if (tracks.length === 0 || fixedRouteEnabled.value === false) {
+  const time = props.vehicleTime
+  const trailSeconds = props.vehicleTrailSeconds ?? 0
+  if (tracks.length === 0 || time == null || trailSeconds <= 0 || fixedRouteEnabled.value === false) {
     return undefined
   }
-  return buildTrailSegments(tracks, vehicleRouteColors.value)
+  return buildTrailSegments(tracks, vehicleShapes(), vehicleRouteColors.value, time, trailSeconds)
 })
 
 // Features for export: the marked features from the layers currently

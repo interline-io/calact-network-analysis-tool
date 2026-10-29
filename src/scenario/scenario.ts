@@ -22,6 +22,7 @@ import type {
   BufferGeographyIntersection,
   RouteFareSummary,
   FareCategory,
+  VehicleShape,
   VehicleTrack,
 } from '~~/src/tl'
 import { StopDepartureCache, FlexDepartureCache } from '~~/src/tl'
@@ -194,8 +195,10 @@ export interface ScenarioData {
   // Standard-fare summary per route id, from the fares phase. A route with no
   // entry has not loaded yet, or its feed version's fare query failed.
   routeFares?: Map<number, RouteFareSummary>
-  // Every vehicle run on the playback's day, from the vehicle-tracks phase.
+  // Every vehicle run on the playback's day, from the vehicle-tracks phase,
+  // and the shapes they follow by id.
   vehicleTracks?: VehicleTrack[]
+  vehicleShapes?: Map<number, VehicleShape>
 }
 
 // Callback interface for scenario stream receivers.
@@ -248,6 +251,7 @@ export interface ScenarioProgress {
     // Route id -> standard-fare summary, one batch per feed version.
     routeFares?: [number, RouteFareSummary][]
     vehicleTracks?: VehicleTrack[]
+    vehicleShapes?: VehicleShape[]
   }
   config?: any
 }
@@ -601,6 +605,7 @@ export class ScenarioDataReceiver {
       stopClusters: [],
       routeFares: new Map<number, RouteFareSummary>(),
       vehicleTracks: [],
+      vehicleShapes: new Map<number, VehicleShape>(),
     }
   }
 
@@ -674,6 +679,9 @@ export class ScenarioDataReceiver {
       if (p.vehicleTracks && this.accumulatedData.vehicleTracks) {
         this.accumulatedData.vehicleTracks.push(...p.vehicleTracks)
       }
+      for (const shape of p.vehicleShapes || []) {
+        this.accumulatedData.vehicleShapes?.set(shape.id, shape)
+      }
     }
 
     return this.callbacks.onProgress?.(progress)
@@ -718,6 +726,7 @@ export class ScenarioDataReceiver {
   // Reset when the playback is turned off, or its fetch fails partway.
   clearVehicleTracks (): void {
     this.accumulatedData.vehicleTracks = []
+    this.accumulatedData.vehicleShapes = new Map<number, VehicleShape>()
   }
 
   // A shallow copy of the accumulated data so far.

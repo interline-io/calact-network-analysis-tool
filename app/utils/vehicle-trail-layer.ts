@@ -77,8 +77,8 @@ function compileProgram (gl: WebGL2RenderingContext): WebGLProgram | undefined {
   return program
 }
 
-// The vehicle playback's fading trails, drawn on the GPU from segments
-// uploaded once. Each frame only moves the clock.
+// The vehicle playback's fading trails, drawn on the GPU, which fades each
+// segment by how long ago its vehicle drove it.
 export class VehicleTrailLayer implements maplibre.CustomLayerInterface {
   readonly id = 'vehicle-trails'
   readonly type = 'custom'

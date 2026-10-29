@@ -99,6 +99,7 @@ import type {
   FlexAreaFeature,
   RouteDepartureIndex,
   BufferGeographyIntersection,
+  VehicleShape,
   VehicleTrack,
 } from '~~/src/tl'
 import { routesById } from '~~/src/tl'
@@ -635,6 +636,7 @@ export interface ScenarioFilterResult {
   stopClusters?: StopCluster[]
   // Passed through from ScenarioData for the vehicle playback.
   vehicleTracks?: VehicleTrack[]
+  vehicleShapes?: Map<number, VehicleShape>
 }
 
 export function applyScenarioResultFilter (
@@ -862,6 +864,7 @@ export function applyScenarioResultFilter (
     aggregationBufferGeographies: data.aggregationBufferGeographies,
     stopClusters,
     vehicleTracks: data.vehicleTracks,
+    vehicleShapes: data.vehicleShapes,
   }
   return result
 }

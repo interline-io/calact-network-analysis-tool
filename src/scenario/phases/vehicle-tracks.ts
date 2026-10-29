@@ -1,10 +1,19 @@
 // Vehicle playback: every run the scenario's routes make on one calendar day,
-// as the times each vehicle is at each stop. Fetched on demand rather than
-// with the scenario, since only the playback uses the runs.
+// as the times each vehicle is at each stop and how far along its shape that
+// stop is, and the shapes the runs follow. Fetched on demand rather than with
+// the scenario, since only the playback uses the runs.
 
-import { differenceInCalendarDays } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import { parseHMS, type GraphQLClient } from '~~/src/core'
-import { routeVehicleTripsQuery, type RouteVehicleTripsResponse, type VehicleTrack } from '~~/src/tl'
+import {
+  routeVehicleTimetablesQuery,
+  vehicleShapesQuery,
+  type RouteVehicleTimetablesResponse,
+  type VehiclePattern,
+  type VehicleShape,
+  type VehicleShapesResponse,
+  type VehicleTrack,
+} from '~~/src/tl'
 import { phaseQueue, type PhaseEmit, type PhaseOpts } from './common'
 import { frequencySchedule } from './departures'
 
@@ -16,31 +25,67 @@ export interface VehicleTracksPhaseConfig {
   date: string
 }
 
-type RouteVehicleTrip = RouteVehicleTripsResponse['trips'][number]
+type VehicleTimetable = NonNullable<VehiclePattern['timetable']>
 
-// Streams every run the routes make on the day, one request per route.
+// Streams every run the routes make on the day, and the shapes they follow,
+// one route at a time.
 export async function runVehicleTracksPhase (
   config: VehicleTracksPhaseConfig,
   client: GraphQLClient,
   emit: PhaseEmit,
   opts: PhaseOpts = {},
 ): Promise<void> {
-  const day = new Date(`${config.date}T00:00:00`)
+  // Trips from the day before that run past midnight reach the day too.
+  const prev = format(subDays(new Date(`${config.date}T00:00:00`), 1), 'yyyy-MM-dd')
   const { queue, progressEvent, done } = phaseQueue<number>('vehicle-tracks', emit, routeId => fetchRoute(routeId), opts)
 
   async function fetchRoute (routeId: number): Promise<void> {
-    const response = await client.query<{ routes: RouteVehicleTripsResponse[] }>(routeVehicleTripsQuery, {
+    const response = await client.query<{ routes: RouteVehicleTimetablesResponse[] }>(routeVehicleTimetablesQuery, {
       ids: [routeId],
-      dates: [config.date],
-      limit: 1,
+      prev,
+      day: config.date,
     })
     const vehicleTracks: VehicleTrack[] = []
+    // A trip on each shape the runs follow, to fetch the shape through.
+    const shapeTrips = new Map<number, number>()
     for (const route of response.data?.routes || []) {
-      for (const trip of route.trips || []) {
-        vehicleTracks.push(...tripTracks(trip, route.id, day))
+      for (const [patterns, dayShift] of [[route.prev, -SECONDS_PER_DAY], [route.day, 0]] as const) {
+        for (const pattern of patterns || []) {
+          const table = pattern.timetable
+          if (!table) {
+            continue
+          }
+          for (let j = 0; j < table.trips.length; j++) {
+            const tracks = tripTracks(table, j, route.id, dayShift)
+            const shapeId = tracks[0]?.shapeId
+            if (shapeId !== undefined && !shapeTrips.has(shapeId)) {
+              shapeTrips.set(shapeId, table.trips[j]!.id)
+            }
+            vehicleTracks.push(...tracks)
+          }
+        }
       }
     }
-    await emit({ ...progressEvent(), partialData: { vehicleTracks } })
+    const vehicleShapes = shapeTrips.size > 0 ? await fetchShapes([...shapeTrips.values()]) : []
+    await emit({ ...progressEvent(), partialData: { vehicleTracks, vehicleShapes } })
+  }
+
+  async function fetchShapes (tripIds: number[]): Promise<VehicleShape[]> {
+    const response = await client.query<VehicleShapesResponse>(vehicleShapesQuery, {
+      ids: tripIds,
+      limit: tripIds.length,
+    })
+    const shapes: VehicleShape[] = []
+    for (const trip of response.data?.trips || []) {
+      if (trip.shape) {
+        shapes.push({
+          id: trip.shape.id,
+          coords: trip.shape.geometry.coordinates.flatMap(c => [c[0]!, c[1]!]),
+          distances: trip.shape.distances,
+        })
+      }
+    }
+    return shapes
   }
 
   queue.enqueue(config.routeIds)
@@ -48,31 +93,32 @@ export async function runVehicleTracksPhase (
   await done()
 }
 
-// The runs a trip makes on the day, moved onto the day's clock from each
-// service date's own.
-function tripTracks (trip: RouteVehicleTrip, routeId: number, day: Date): VehicleTrack[] {
+// The runs one timetable column makes on the day, moved onto the day's clock
+// from its service day's. A trip without a shape makes none.
+function tripTracks (table: VehicleTimetable, j: number, routeId: number, dayShift: number): VehicleTrack[] {
+  const trip = table.trips[j]!
+  if (!trip.shape) {
+    return []
+  }
   const times: number[] = []
-  const coords: number[] = []
-  const stopTimes = trip.stop_times
-    .filter(st => st != null)
-    .sort((a, b) => a.stop_sequence - b.stop_sequence)
-  for (const st of stopTimes) {
-    const point = st.stop?.geometry?.coordinates
-    const arrival = parseHMS(st.arrival_time)
-    const departure = parseHMS(st.departure_time)
+  const distances: number[] = []
+  for (let i = 0; i < table.shape_distances.values.length; i++) {
+    const distance = table.shape_distances.values[i]![j]
+    const arrival = parseHMS(table.arrival_times.values[i]![j])
+    const departure = parseHMS(table.departure_times.values[i]![j])
     // Either side stands in for the other where the feed left one blank.
     const arrive = arrival >= 0 ? arrival : departure
     const leave = departure >= 0 ? departure : arrival
     // A stop time out of order would send the vehicle back in time; it is
-    // dropped, and the vehicle passes straight between its neighbors.
-    if (!point || arrive < 0 || arrive < (times[times.length - 1] ?? 0)) {
+    // dropped, and the vehicle drives straight on from its neighbor.
+    if (distance == null || arrive < 0 || arrive < (times[times.length - 1] ?? 0)) {
       continue
     }
     times.push(arrive)
-    coords.push(point[0]!, point[1]!)
+    distances.push(distance)
     if (leave > arrive) {
       times.push(leave)
-      coords.push(point[0]!, point[1]!)
+      distances.push(distance)
     }
   }
   if (times.length === 0) {
@@ -88,23 +134,20 @@ function tripTracks (trip: RouteVehicleTrip, routeId: number, day: Date): Vehicl
     offsets = schedule ? schedule.starts.map(t => t - schedule.anchor) : []
   }
 
-  // A `dates` query also reports the day before as a service date, in case the
-  // trip runs past midnight; runs that never reach the day are dropped.
   const tracks: VehicleTrack[] = []
-  for (const serviceDate of trip.service_dates || []) {
-    const dayShift = differenceInCalendarDays(new Date(`${serviceDate}T00:00:00`), day) * SECONDS_PER_DAY
-    for (const offset of offsets) {
-      const shift = dayShift + offset
-      if (times[times.length - 1]! + shift < 0 || times[0]! + shift > SECONDS_PER_DAY) {
-        continue
-      }
-      tracks.push({
-        tripId: trip.id,
-        routeId,
-        times: times.map(t => t + shift),
-        coords,
-      })
+  for (const offset of offsets) {
+    const shift = dayShift + offset
+    // A run from the day before that ends before midnight never reaches the day.
+    if (times[times.length - 1]! + shift < 0 || times[0]! + shift > SECONDS_PER_DAY) {
+      continue
     }
+    tracks.push({
+      tripId: trip.id,
+      routeId,
+      shapeId: trip.shape.id,
+      times: times.map(t => t + shift),
+      distances,
+    })
   }
   return tracks
 }

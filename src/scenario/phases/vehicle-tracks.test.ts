@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { gql } from 'graphql-tag'
 import { apiFetch, BasicGraphQLClient } from '~~/src/core'
-import type { VehicleTrack } from '~~/src/tl'
+import type { VehicleShape, VehicleTrack } from '~~/src/tl'
 import { runVehicleTracksPhase } from './vehicle-tracks'
 
 // Runs the phase against the live test server's TriMet fixture.
@@ -36,12 +36,28 @@ async function lookup (client: BasicGraphQLClient, routeId: string, tripId?: str
   return { routeId: route.id, tripId: tripId ? route.trips[0]?.id : undefined }
 }
 
-async function fetchTracks (client: BasicGraphQLClient, routeIds: number[]): Promise<VehicleTrack[]> {
+async function fetchTracks (client: BasicGraphQLClient, routeIds: number[]): Promise<{ tracks: VehicleTrack[], shapes: Map<number, VehicleShape> }> {
   const tracks: VehicleTrack[] = []
+  const shapes = new Map<number, VehicleShape>()
   await runVehicleTracksPhase({ routeIds, date: DATE }, client, (progress) => {
     tracks.push(...(progress.partialData?.vehicleTracks || []))
+    for (const shape of progress.partialData?.vehicleShapes || []) {
+      shapes.set(shape.id, shape)
+    }
   })
-  return tracks
+  return { tracks, shapes }
+}
+
+// Every track's shape came with it, and its stops are in order along it.
+function expectOnShapes (tracks: VehicleTrack[], shapes: Map<number, VehicleShape>) {
+  for (const track of tracks) {
+    const shape = shapes.get(track.shapeId)
+    expect(shape, `trip ${track.tripId} shape`).toBeDefined()
+    expect(shape!.coords).toHaveLength(shape!.distances.length * 2)
+    expect(track.distances).toHaveLength(track.times.length)
+    expect(track.distances).toEqual([...track.distances].sort((a, b) => a - b))
+    expect(track.distances[track.distances.length - 1]).toBeLessThanOrEqual(shape!.distances[shape!.distances.length - 1]! + 1)
+  }
 }
 
 function hms (s: string): number {
@@ -55,24 +71,27 @@ describe('runVehicleTracksPhase (integration)', () => {
   it('places a trip at each of its stops at its times', async () => {
     // Portland Streetcar NS Line, a four-stop trip leaving at 05:37.
     const { routeId, tripId } = await lookup(client, '193', '15669480')
-    const tracks = await fetchTracks(client, [routeId])
+    const { tracks, shapes } = await fetchTracks(client, [routeId])
     expect(tracks.length).toBeGreaterThan(0)
+    expectOnShapes(tracks, shapes)
 
-    // The query also offers the day before as a service date; that run never
-    // reaches the day, so the trip makes one run.
+    // The trip runs the day before too, but that run ends before midnight, so
+    // the trip makes one run on the day.
     const runs = tracks.filter(t => t.tripId === tripId)
     expect(runs).toHaveLength(1)
     expect(runs[0]!.routeId).toBe(routeId)
     expect(runs[0]!.times).toEqual(['05:37', '05:38', '05:39', '05:41'].map(hms))
-    expect(runs[0]!.coords.slice(0, 2)).toEqual([-122.689417, 45.531434])
+    // The first stop is at the shape's start, the next ones farther along.
+    expect(runs[0]!.distances[0]).toBeLessThan(50)
+    expect(runs[0]!.distances[3]).toBeGreaterThan(runs[0]!.distances[0]!)
   })
 
   it('moves runs past midnight onto the day\'s clock', async () => {
     const { routeId } = await lookup(client, '100') // MAX Blue Line
-    const tracks = await fetchTracks(client, [routeId])
+    const { tracks, shapes } = await fetchTracks(client, [routeId])
     expect(tracks.length).toBeGreaterThan(0)
+    expectOnShapes(tracks, shapes)
     for (const track of tracks) {
-      expect(track.coords).toHaveLength(track.times.length * 2)
       expect(track.times).toEqual([...track.times].sort((a, b) => a - b))
       // Every run reaches the day.
       expect(track.times[track.times.length - 1]).toBeGreaterThanOrEqual(0)
