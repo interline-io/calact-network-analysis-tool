@@ -1,17 +1,12 @@
-/**
- * The places trips at the stops come from and go to, laid out around the
- * stops as on a compass: each place by its bearing and distance from them.
- *
- * Bearings and distances are flat-earth arithmetic on coordinates, close
- * enough over a region to place a mark on a diagram; they are never
- * reported as figures.
- */
+// Trip origins and destinations around the stops, placed as on a compass by
+// bearing and distance.
 
+import { KM_PER_DEGREE } from '../../core'
 import type { TripTableRoute } from './subject-trips'
-import { bearingAndDistance, routeLabel, type TransferArrivalSummary, type TransferGrade, type TransferRouteChoice, type TransferTripDestination } from './transfers'
+import { choiceDestinations, routeLabel, type TransferArrivalSummary, type TransferGrade, type TransferRouteChoice, type TransferTripDestination } from './transfers'
 
-// A place trips come from (arriving) or go to (departing), and the
-// destinations (transferTripKey) whose trips start or end there.
+// Where arriving trips start or departing trips end, with the destinations
+// (transferTripKey) whose trips start or end there.
 export interface TransferCompassPlace {
   // The station's name and rough location, as two stations may share a name.
   key: string
@@ -20,12 +15,22 @@ export interface TransferCompassPlace {
   bearing: number
   km: number
   keys: string[]
-  // Trips.
+  // How many trips those destinations have.
   count: number
 }
 
 // Connections by grade.
 export type TransferGradeCounts = Record<TransferGrade, number>
+
+// The bearing (degrees clockwise from north) and distance (km) from one
+// [lon, lat] to another: flat-earth arithmetic, close enough over a region
+// to place a mark on a diagram.
+export function bearingAndDistance (from: [number, number], to: [number, number]): { bearing: number, km: number } {
+  const dx = (to[0] - from[0]) * Math.cos((from[1] * Math.PI) / 180)
+  const dy = to[1] - from[1]
+  const bearing = ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360
+  return { bearing, km: Math.hypot(dx, dy) * KM_PER_DEGREE }
+}
 
 // A distance as a share of a compass's radius, 0 at the stops and 1 at the
 // farthest place, on a log scale: places nearby spread out, and one far
@@ -40,8 +45,7 @@ export function compassRings (maxKm: number): number[] {
   return [1, 3, 10, 30, 100, 300, 1000, 3000].filter(km => km <= maxKm).slice(-4)
 }
 
-// The middle of the widest gap between bearings (degrees), where a
-// compass's ring labels keep out of its places' way.
+// The middle of the widest gap between bearings (degrees); 45 for none.
 export function quietBearing (bearings: number[]): number {
   const sorted = bearings.map(b => ((b % 360) + 360) % 360).sort((a, b) => a - b)
   let widest = 0
@@ -62,8 +66,8 @@ export function along (bearing: number): [number, number] {
   return [Math.sin(a), -Math.cos(a)]
 }
 
-// Bearings (degrees) to draw places at: their own, fanned apart where any
-// two are closer than `gap` degrees, around the circle, north included.
+// Bearings (degrees) fanned apart so no two are closer than `gap`, across
+// north too.
 export function spreadBearings (bearings: number[], gap: number): number[] {
   // Cut the circle at the middle of its widest gap, so neighbors either side
   // of north sort side by side.
@@ -89,8 +93,8 @@ export function spreadBearings (bearings: number[], gap: number): number[] {
   return angles.map(a => a + cut)
 }
 
-// Labels down each side of a drawing (by labelX's sign) moved apart to at
-// least `gap`, and back up where they run past `bottom`, within `top`.
+// Moves the labels on each side of a drawing (by labelX's sign) at least
+// `gap` apart, keeping them between `top` and `bottom`.
 export function spreadLabels (labels: { labelX: number, labelY: number }[], top: number, bottom: number, gap: number): void {
   for (const left of [true, false]) {
     const side = labels.filter(p => (p.labelX < 0) === left).sort((a, b) => a.labelY - b.labelY)
@@ -116,16 +120,15 @@ export function centerOf (points: [number, number][]): [number, number] | undefi
   return [sum[0] / points.length, sum[1] / points.length]
 }
 
-/**
- * The places arriving trips ('from') start at, or departing trips ('to') end
- * at, from the trip choices, each with the destinations whose trips most
- * often start or end there. Places are by station name and rough location
- * (to about a kilometer), so stations of one name elsewhere stay apart;
- * those with no known location are left out.
- */
+// Where arriving trips ('from') start or departing trips ('to') end, each
+// with the destinations whose trips most often start or end there.
+//
+// A place is a station name and a point rounded to about a kilometer, so
+// stations of one name elsewhere stay apart; places with no point are left
+// out.
 export function transferCompassPlaces (choices: TransferRouteChoice[], side: 'from' | 'to', center: [number, number]): TransferCompassPlace[] {
   const places = new Map<string, TransferCompassPlace>()
-  for (const d of choices.flatMap(r => r.directions.flatMap(x => x.destinations))) {
+  for (const d of choiceDestinations(choices)) {
     const name = side === 'from' ? d.run.origin : d.run.terminus
     const point = side === 'from' ? d.run.originPoint : d.run.terminusPoint
     if (!name || !point) {
@@ -141,8 +144,8 @@ export function transferCompassPlaces (choices: TransferRouteChoice[], side: 'fr
 }
 
 // A flow on the rose: the connections from arrivals on one destination to
-// departures on another, with the places (their keys) their trips come from
-// and go to.
+// departures on another, with the keys of the places where their trips start
+// and end.
 export interface TransferRoseFlow {
   from: string
   to: string
@@ -152,16 +155,21 @@ export interface TransferRoseFlow {
   total: number
 }
 
-// A destination as the rose's table names it: its route and its name.
+// A destination's route, agency and name, for the rose's table.
 export interface TransferRoseTrip {
   route: string
   agency: string
   label: string
 }
 
+// A place on the rose, with the connections of every flow that starts or
+// ends there.
+export type TransferRosePlace = Pick<TransferCompassPlace, 'key' | 'name' | 'bearing' | 'km'> & { total: number }
+
+// The Compass view's places and the flows between them.
 export interface TransferRose {
-  // Every place a flow comes from or goes to, by bearing.
-  places: { key: string, name: string, bearing: number, km: number }[]
+  // Every place where a flow starts or ends, by bearing.
+  places: TransferRosePlace[]
   // By most connections.
   flows: TransferRoseFlow[]
   // The destinations by key, arriving and departing.
@@ -175,19 +183,18 @@ interface RoseTripInfo {
   to: Map<string, TransferTripDestination>
 }
 
-/**
- * Connections as flows from where arriving trips come from to where
- * departing trips go, for one compass rose: each pair of arriving and
- * departing destinations, placed by the compass places their trips start
- * and end at. Pairs with an unplaced end are left out.
- */
+// Connections as flows from arriving trips' origins to departing trips'
+// destinations, one per pair of destinations; pairs with an unplaced end are
+// left out.
 export function transferRose (summaries: TransferArrivalSummary[], compass: { from: TransferCompassPlace[], to: TransferCompassPlace[] }, info: RoseTripInfo): TransferRose {
   const placeOf = (places: TransferCompassPlace[]) => new Map(places.flatMap(p => p.keys.map(k => [k, p] as const)))
   const fromPlace = placeOf(compass.from)
   const toPlace = placeOf(compass.to)
   const flows: TransferRoseFlow[] = []
-  // The flows' destinations' routes, from the summaries' trips.
+  // The flows' destinations' routes, from the summaries' trips; and each
+  // place's connections, counted at both ends.
   const routeIds = new Map<string, number>()
+  const totals = new Map<string, number>()
   for (const { from, pairs } of summaries) {
     const origin = fromPlace.get(from.key)
     for (const p of pairs) {
@@ -201,13 +208,16 @@ export function transferRose (summaries: TransferArrivalSummary[], compass: { fr
         flows.push({ from: origin.key, to: destination.key, fromKey: from.key, toKey: p.to.key, grades, total })
         routeIds.set(from.key, from.routeId)
         routeIds.set(p.to.key, p.to.routeId)
+        totals.set(origin.key, (totals.get(origin.key) ?? 0) + total)
+        totals.set(destination.key, (totals.get(destination.key) ?? 0) + total)
       }
     }
   }
-  const places = new Map<string, { key: string, name: string, bearing: number, km: number }>()
+  const places = new Map<string, TransferRosePlace>()
   for (const p of [...compass.from, ...compass.to]) {
-    if (!places.has(p.key) && flows.some(f => f.from === p.key || f.to === p.key)) {
-      places.set(p.key, { key: p.key, name: p.name, bearing: p.bearing, km: p.km })
+    const total = totals.get(p.key)
+    if (total !== undefined && !places.has(p.key)) {
+      places.set(p.key, { key: p.key, name: p.name, bearing: p.bearing, km: p.km, total })
     }
   }
   const trips = (byKey: RoseTripInfo['from'], keys: Set<string>) => new Map([...keys].map((key) => {

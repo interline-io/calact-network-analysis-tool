@@ -76,8 +76,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { TransferMapRoute, TransferMapStop } from './stops-map.vue'
-import { TRANSFER_PICKED_COLOR, compareNamesBlankLast, groupBy } from '~~/src/core'
-import { KM_PER_DEGREE } from '~~/src/scenario'
+import { KM_PER_DEGREE, TRANSFER_PICKED_COLOR, compareNamesBlankLast, groupBy } from '~~/src/core'
 
 const props = defineProps<{
   mapStops: TransferMapStop[]

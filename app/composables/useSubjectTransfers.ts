@@ -399,18 +399,16 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
 
   const summary = computed(() => summarizeTransfers(dateGroups.value))
   const summaryGrid = computed(() => transferSummaryGrid(summary.value, tripInfo.value))
-  // Where arriving trips come from and departing ones go, around the middle
-  // of the stops; and the connections by grade at each.
+  // Arriving trips' origins and departing trips' destinations, placed around
+  // the middle of the stops.
   const compass = computed(() => {
-    const center = centerOf(stopIds.value.flatMap((id) => {
-      const [lon, lat] = stops.value.get(id)?.geometry.coordinates ?? []
-      return lon === undefined || lat === undefined ? [] : [[lon, lat] as [number, number]]
-    }))
+    const center = centerOf(stopPoints.value.map((p): [number, number] => [p.lon, p.lat]))
     return {
       from: center ? transferCompassPlaces(routeChoices.value.from, 'from', center) : [],
       to: center ? transferCompassPlaces(routeChoices.value.to, 'to', center) : [],
     }
   })
+  // The connections between those places, for the Compass view.
   const rose = computed(() => transferRose(summary.value, compass.value, tripInfo.value))
 
   // The views' rows as flat CSV records, built on demand.

@@ -878,8 +878,8 @@ function mostCommon<T extends string | number> (values: T[]): T | undefined {
   return best
 }
 
-// Where some trips place a station, by name: the first point any of them
-// gives for it, as an origin or a terminus.
+// The first point some trips give for a station, by name, as an origin or a
+// terminus.
 function stationPoint (trips: TransferEvent[], name: string | undefined): [number, number] | undefined {
   if (name === undefined) {
     return undefined
@@ -1340,17 +1340,4 @@ export function transferRows (
     }
   }
   return rows
-}
-
-// Kilometers per degree of latitude.
-export const KM_PER_DEGREE = 111.32
-
-// The bearing (degrees clockwise from north) and distance (km) from one
-// [lon, lat] to another: flat-earth arithmetic, close enough over a region
-// to place a mark on a diagram, and never reported as a figure.
-export function bearingAndDistance (from: [number, number], to: [number, number]): { bearing: number, km: number } {
-  const dx = (to[0] - from[0]) * Math.cos((from[1] * Math.PI) / 180)
-  const dy = to[1] - from[1]
-  const bearing = ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360
-  return { bearing, km: Math.hypot(dx, dy) * KM_PER_DEGREE }
 }

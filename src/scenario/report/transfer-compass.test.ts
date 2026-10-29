@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { centerOf, compassRings, compassScale, quietBearing, spreadBearings, transferCompassPlaces, transferRose } from './transfer-compass'
+import { bearingAndDistance, centerOf, compassRings, compassScale, quietBearing, spreadBearings, transferCompassPlaces, transferRose } from './transfer-compass'
 import type { TransferArrivalSummary, TransferRouteChoice, TransferTripDestination } from './transfers'
 
 const MILLBRAE: [number, number] = [-122.387, 37.600]
@@ -13,6 +13,18 @@ function destination (key: string, count: number, run: TransferTripDestination['
 function route (destinations: TransferTripDestination[]): TransferRouteChoice {
   return { id: 1, label: '1', longName: '', operator: '', count: 0, directions: [{ directionId: 0, label: '', count: 0, destinations }] }
 }
+
+describe('bearingAndDistance', () => {
+  it('measures bearing clockwise from north, and distance in km', () => {
+    const north = bearingAndDistance(MILLBRAE, SF)
+    expect(north.bearing > 355 || north.bearing < 5).toBe(true)
+    expect(north.km).toBeGreaterThan(18)
+    expect(north.km).toBeLessThan(21)
+    const southeast = bearingAndDistance(MILLBRAE, SAN_JOSE)
+    expect(southeast.bearing).toBeGreaterThan(120)
+    expect(southeast.bearing).toBeLessThan(150)
+  })
+})
 
 describe('centerOf', () => {
   it('averages points, and has none for none', () => {
@@ -71,7 +83,7 @@ describe('transferRose', () => {
   it('flows from where arriving trips start to where departing ones end, leaving out unplaced ones', () => {
     const rose = transferRose(summaries, compass, info)
     expect(rose.flows.map(f => [f.from, f.to, f.total])).toEqual([['San Jose', 'San Francisco', 3], ['San Jose', 'Tamien', 1]])
-    expect(rose.places.map(p => p.name)).toEqual(['San Francisco', 'San Jose', 'Tamien'])
+    expect(rose.places.map(p => [p.name, p.total])).toEqual([['San Francisco', 3], ['San Jose', 4], ['Tamien', 1]])
     expect(rose.from.get('in')).toEqual({ route: 'Local', agency: 'Caltrain', label: 'San Francisco' })
   })
 })

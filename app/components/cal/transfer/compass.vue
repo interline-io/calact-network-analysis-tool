@@ -1,26 +1,25 @@
 <template>
-  <!-- Places trips come from or go to, around the stops by bearing and
-       distance, to pick trips by: each place and each compass point
-       toggles its trips. -->
-  <figure class="cal-transfer-compass" :aria-label="label">
-    <p v-if="layout.length === 0" class="cal-transfer-compass-empty">
-      No places to show.
-    </p>
-    <div v-else class="cal-transfer-compass-frame" :style="{ aspectRatio: `${WIDTH} / ${HEIGHT}` }">
-      <svg :viewBox="`${-WIDTH / 2} ${-HEIGHT / 2} ${WIDTH} ${HEIGHT}`" aria-hidden="true">
+  <!-- A dial of trip origins or destinations around the stops, by bearing
+       and distance. Clicking a place or a compass point includes or leaves
+       out its trips. -->
+  <figure :aria-label="side === 'from' ? 'Origins of arriving trips' : 'Destinations of departing trips'">
+    <!-- The frame keeps its size while empty, so the list below stays put as
+         places arrive. -->
+    <div class="is-relative cal-transfer-compass-frame">
+      <svg :viewBox="`${-WIDTH / 2} ${-HEIGHT / 2} ${WIDTH} ${HEIGHT}`" class="is-block" aria-hidden="true">
         <defs>
           <marker v-for="m of MARKERS" :id="`${uid}-${m.id}`" :key="m.id" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
             <path d="M0,0 L10,5 L0,10 z" :fill="m.color" />
           </marker>
         </defs>
-        <path v-if="hoveredSector !== undefined" class="cal-transfer-compass-sector" :d="sectorPath(hoveredSector)" />
+        <path v-if="hoveredSector !== undefined" :d="sectorPath(hoveredSector)" :fill="TRANSFER_PICKED_COLOR" fill-opacity="0.08" />
         <g class="cal-transfer-compass-rings">
           <template v-for="ring of rings" :key="ring.km">
             <circle :r="ring.r" />
             <text :x="ring.x" :y="ring.y" text-anchor="middle" dominant-baseline="middle">{{ ring.km }} km</text>
           </template>
         </g>
-        <!-- Leaders from a place to its label, where the label moved off it. -->
+        <!-- A leader from each place whose label was moved. -->
         <template v-for="p of layout" :key="`leader-${p.key}`">
           <line v-if="Math.abs(p.labelY - p.y) > 2" class="cal-transfer-compass-leader" :x1="p.x" :y1="p.y" :x2="p.labelX" :y2="p.labelY" />
         </template>
@@ -29,7 +28,7 @@
           v-for="p of layout"
           :key="`line-${p.key}`"
           class="cal-transfer-compass-line"
-          :class="`cal-transfer-compass-line-${p.state}`"
+          :class="`cal-transfer-compass-${p.state}`"
           v-bind="arrowEnds(p)"
           :marker-end="`url(#${uid}-${p.state === 'none' ? 'off' : 'on'})`"
         />
@@ -37,33 +36,37 @@
           v-for="p of layout"
           :key="`dot-${p.key}`"
           class="cal-transfer-compass-dot"
-          :class="`cal-transfer-compass-dot-${p.state}`"
+          :class="`cal-transfer-compass-${p.state}`"
           :cx="p.x"
           :cy="p.y"
           :r="p.dot"
-          @click="toggle(p)"
+          @click="toggle(p.keys, p.state === 'all')"
         />
-        <circle class="cal-transfer-compass-center" r="5" />
+        <circle v-if="layout.length > 0" r="5" fill="currentColor" />
       </svg>
+      <p v-if="layout.length === 0" class="is-overlay is-flex is-align-items-center is-justify-content-center has-text-grey">
+        No places to show.
+      </p>
       <!-- Compass points, each toggling the trips of the places that way. -->
       <cat-tooltip
-        v-for="(point, i) of POINTS"
-        :key="point.short"
-        :text="sectorText(i)"
+        v-for="s of sectors"
+        :key="s.short"
+        :text="s.text"
         class="cal-transfer-compass-point"
-        :style="at(point.x, point.y)"
+        :style="at(s.x, s.y)"
       >
         <button
           type="button"
-          :disabled="sectorPlaces(i).length === 0"
-          :aria-label="sectorText(i)"
-          @click="toggleSector(i)"
-          @mouseenter="hoveredSector = i"
+          class="cal-link-button has-text-weight-semibold"
+          :disabled="s.keys.length === 0"
+          :aria-label="s.text"
+          @click="toggle(s.keys, s.all)"
+          @mouseenter="hoveredSector = s.index"
           @mouseleave="hoveredSector = undefined"
-          @focus="hoveredSector = i"
+          @focus="hoveredSector = s.index"
           @blur="hoveredSector = undefined"
         >
-          {{ point.short }}
+          {{ s.short }}
         </button>
       </cat-tooltip>
       <!-- Each place's name, toggling its trips. -->
@@ -72,10 +75,16 @@
         :key="`label-${p.key}`"
         :text="p.text"
         class="cal-transfer-compass-label"
-        :class="[`cal-transfer-compass-label-${p.labelX < 0 ? 'left' : 'right'}`, `cal-transfer-compass-label-${p.state}`]"
+        :class="{ 'cal-transfer-compass-label-left': p.labelX < 0 }"
         :style="at(p.labelX, p.labelY)"
       >
-        <button type="button" :aria-pressed="p.state === 'all' ? 'true' : p.state === 'some' ? 'mixed' : 'false'" @click="toggle(p)">
+        <button
+          type="button"
+          class="cal-link-button"
+          :class="{ 'has-text-grey': p.state === 'none' }"
+          :aria-pressed="p.state === 'all' ? 'true' : p.state === 'some' ? 'mixed' : 'false'"
+          @click="toggle(p.keys, p.state === 'all')"
+        >
           {{ p.name }}
         </button>
       </cat-tooltip>
@@ -85,13 +94,12 @@
 
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
+import { TRANSFER_PICKED_COLOR, TRANSFER_UNPICKED_COLOR } from '~~/src/core'
 import { along, compassRings, compassScale, quietBearing, spreadBearings, spreadLabels, type TransferCompassPlace } from '~~/src/scenario'
 
 const props = defineProps<{
-  // Named for the screen reader; the list beside it says the rest.
-  label: string
   places: TransferCompassPlace[]
-  // Where trips arrive from ('from') or depart to ('to').
+  // Which trips the places are for: arriving ('from') or departing ('to').
   side: 'from' | 'to'
   // The destinations left out.
   excluded: string[]
@@ -109,17 +117,24 @@ const HEIGHT = 300
 // spread out.
 const INNER = 18
 const OUTER = 118
-// Labels at least this far apart.
-const LABEL_GAP = 13
-const PICKED = '#7a4dda'
-const OTHER = '#9aa1ab'
-const MARKERS = [{ id: 'on', color: PICKED }, { id: 'off', color: OTHER }]
-const POINTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'].map((short, i) => {
+// Places at least this many degrees apart, and labels this far apart.
+const MIN_SPREAD = 8
+const LABEL_GAP = 17
+const MARKERS = [{ id: 'on', color: TRANSFER_PICKED_COLOR }, { id: 'off', color: TRANSFER_UNPICKED_COLOR }]
+// The compass points, on an ellipse, as the frame is wider than tall.
+const POINTS = [
+  { short: 'N', name: 'north' },
+  { short: 'NE', name: 'northeast' },
+  { short: 'E', name: 'east' },
+  { short: 'SE', name: 'southeast' },
+  { short: 'S', name: 'south' },
+  { short: 'SW', name: 'southwest' },
+  { short: 'W', name: 'west' },
+  { short: 'NW', name: 'northwest' },
+].map((point, i) => {
   const angle = (i * 45 * Math.PI) / 180
-  // On an ellipse, as the frame is wider than tall.
-  return { short, x: Math.sin(angle) * (OUTER + 26), y: -Math.cos(angle) * (HEIGHT / 2 - 12) }
+  return { ...point, x: Math.sin(angle) * (OUTER + 26), y: -Math.cos(angle) * (HEIGHT / 2 - 12) }
 })
-const NAMES = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest']
 
 const hoveredSector = ref<number>()
 
@@ -165,8 +180,15 @@ const layout = computed(() => {
   return placed
 })
 
-// Places at least this many degrees apart.
-const MIN_SPREAD = 8
+// Each compass point with the destinations of its places, toggled together.
+const sectors = computed(() => POINTS.map((point, i) => {
+  const places = layout.value.filter(p => sectorOf(p.bearing) === i)
+  const all = places.every(p => p.state === 'all')
+  const text = places.length === 0
+    ? `No trips ${props.side} the ${point.name}`
+    : `${all ? 'Leave out' : 'Include'} trips ${props.side} the ${point.name}: ${places.map(p => p.name).join(', ')}`
+  return { ...point, index: i, keys: places.flatMap(p => p.keys), all, text }
+}))
 
 // A line from the stops to a place, arrowed toward the stops for arriving
 // trips and toward the place for departing ones.
@@ -178,30 +200,14 @@ function arrowEnds (p: { angle: number, r: number, dot: number }) {
   return { x1: ux * a, y1: uy * a, x2: ux * b, y2: uy * b }
 }
 
-const DIRECTION = { from: 'Arriving from', to: 'Departing to' }
-
 function placeText (p: TransferCompassPlace, state: 'all' | 'some' | 'none'): string {
-  const trips = `${p.count.toLocaleString()} ${p.count === 1 ? 'trip' : 'trips'}`
-  const where = `${DIRECTION[props.side]} ${p.name}, to the ${NAMES[sectorOf(p.bearing)]}`
-  const included = { all: 'included', some: 'some included', none: 'left out' }[state]
-  return `${where}: ${trips}, ${included}. Click to ${state === 'all' ? 'leave them out' : 'include them'}.`
+  const trips = `${p.count.toLocaleString()} ${props.side === 'from' ? 'arriving' : 'departing'} ${p.count === 1 ? 'trip' : 'trips'}`
+  const included = { all: 'included', some: 'some included', none: 'excluded' }[state]
+  return `${p.name}, ${POINTS[sectorOf(p.bearing)]!.name} of the stops: ${trips}, ${included}. Click to ${state === 'all' ? 'exclude' : 'include'} them.`
 }
 
 function sectorOf (bearing: number): number {
   return Math.round(bearing / 45) % 8
-}
-
-function sectorPlaces (i: number) {
-  return layout.value.filter(p => sectorOf(p.bearing) === i)
-}
-
-function sectorText (i: number): string {
-  const places = sectorPlaces(i)
-  if (places.length === 0) {
-    return `No trips ${props.side === 'from' ? 'from' : 'to'} the ${NAMES[i]}`
-  }
-  const all = places.every(p => p.state === 'all')
-  return `${all ? 'Leave out' : 'Include'} trips ${props.side === 'from' ? 'from' : 'to'} the ${NAMES[i]}: ${places.map(p => p.name).join(', ')}`
 }
 
 // A wedge of the compass, highlighted as its point is hovered.
@@ -212,45 +218,25 @@ function sectorPath (i: number): string {
   return `M0,0 L${(ax * r).toFixed(1)},${(ay * r).toFixed(1)} A${r},${r} 0 0 1 ${(bx * r).toFixed(1)},${(by * r).toFixed(1)} Z`
 }
 
-function toggle (p: { keys: string[], state: 'all' | 'some' | 'none' }) {
-  emit('toggle', p.keys, p.state !== 'all')
+// Leaves the destinations out where all are included, else includes them.
+function toggle (keys: string[], allIncluded: boolean) {
+  emit('toggle', keys, !allIncluded)
 }
 
-function toggleSector (i: number) {
-  const places = sectorPlaces(i)
-  const all = places.every(p => p.state === 'all')
-  emit('toggle', places.flatMap(p => p.keys), !all)
-}
-
-// A point in the SVG's frame as a position over it.
+// A point in SVG coordinates as a CSS position over the frame.
 function at (x: number, y: number) {
   return { left: `${((x + WIDTH / 2) / WIDTH) * 100}%`, top: `${((y + HEIGHT / 2) / HEIGHT) * 100}%` }
 }
 </script>
 
 <style scoped lang="scss">
-.cal-transfer-compass {
-  margin: 0;
-  font-size: 0.75rem;
-}
-
-.cal-transfer-compass-empty {
-  color: var(--bulma-text-weak);
-}
-
+// The dial at most this wide, so it stays compact over its list.
 .cal-transfer-compass-frame {
-  position: relative;
-  width: 100%;
   max-width: 34rem;
-
-  svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-    overflow: visible;
-  }
 }
 
+// Ring labels stay small enough to fit between the rings, which lie closer
+// together than a line of text.
 .cal-transfer-compass-rings {
   circle {
     fill: none;
@@ -267,122 +253,70 @@ function at (x: number, y: number) {
   }
 }
 
-.cal-transfer-compass-sector {
-  fill: #7a4dda;
-  opacity: 0.08;
-}
-
 .cal-transfer-compass-leader {
   stroke: var(--bulma-border);
   stroke-width: 0.75;
 }
 
 .cal-transfer-compass-line {
+  stroke: v-bind(TRANSFER_PICKED_COLOR);
   stroke-width: 1.5;
-  stroke: #7a4dda;
-}
 
-.cal-transfer-compass-line-some {
-  stroke-dasharray: 4 2;
-}
+  &.cal-transfer-compass-some {
+    stroke-dasharray: 4 2;
+  }
 
-.cal-transfer-compass-line-none {
-  stroke: #c9cdd2;
-  stroke-width: 1;
+  &.cal-transfer-compass-none {
+    stroke: v-bind(TRANSFER_UNPICKED_COLOR);
+    stroke-width: 1;
+  }
 }
 
 .cal-transfer-compass-dot {
+  stroke: v-bind(TRANSFER_PICKED_COLOR);
   stroke-width: 1.5;
-  stroke: #7a4dda;
-  fill: #7a4dda;
-}
-
-.cal-transfer-compass-dot {
+  fill: v-bind(TRANSFER_PICKED_COLOR);
   cursor: pointer;
+
+  &.cal-transfer-compass-some {
+    fill: color-mix(in srgb, v-bind(TRANSFER_PICKED_COLOR) 40%, var(--bulma-scheme-main));
+  }
+
+  &.cal-transfer-compass-none {
+    stroke: v-bind(TRANSFER_UNPICKED_COLOR);
+    fill: var(--bulma-scheme-main);
+  }
 }
 
-.cal-transfer-compass-dot-some {
-  fill: #c9b8f0;
-}
-
-.cal-transfer-compass-dot-none {
-  stroke: #9aa1ab;
-  fill: var(--bulma-scheme-main);
-}
-
-.cal-transfer-compass-center {
-  fill: var(--bulma-text);
-}
-
-// Labels and compass points sit over the drawing, centered on their point
-// (a label, beside it).
+// Compass points and place labels over the drawing: a point centered on its
+// spot, and a label beside its place, within the room between the outer ring
+// and the frame's edge.
 .cal-transfer-compass-point,
 .cal-transfer-compass-label {
   position: absolute;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .cal-transfer-compass-point {
   transform: translate(-50%, -50%);
-  font-weight: 600;
-  color: var(--bulma-text-weak);
 }
 
-.cal-transfer-compass-point button {
-  background: none;
-  border: 0;
-  border-radius: 3px;
-  padding: 0.1rem 0.2rem;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-
-  &:hover:not(:disabled),
-  &:focus-visible {
-    background: var(--bulma-scheme-main-ter);
-    color: var(--bulma-text-strong);
-  }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-}
-
+// On the page's background, so a name stays readable over a compass point.
 .cal-transfer-compass-label {
+  max-width: 23%;
+  background: var(--bulma-scheme-main);
   transform: translateY(-50%);
-  white-space: nowrap;
-  max-width: 9rem;
-
-  button,
-  span {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 9rem;
-  }
 
   button {
-    background: none;
-    border: 0;
-    padding: 0;
-    font: inherit;
-    color: var(--bulma-text);
-    cursor: pointer;
-
-    &:hover,
-    &:focus-visible {
-      text-decoration: underline;
-    }
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
 .cal-transfer-compass-label-left {
   transform: translate(-100%, -50%);
-  text-align: right;
-}
-
-.cal-transfer-compass-label-none button {
-  color: var(--bulma-text-weak);
 }
 </style>

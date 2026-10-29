@@ -215,9 +215,9 @@
           </dl>
           <cal-plot class="column mb-0 cal-transfer-report-grades" :options="gradeBar" :label="gradeChartLabel(overview.grades)" />
         </div>
-        <!-- Where the connections come from and go, as flows around the
-             stops. -->
-        <cal-transfer-rose v-if="view === 'compass'" ref="roseChart" :rose="rose" @show="showInIndividual" />
+        <!-- The connections as flows from trips' origins, through the stops,
+             to their destinations. -->
+        <cal-transfer-rose v-if="view === 'compass'" ref="roseChart" :rose="rose" @show="showFocus" />
         <cal-plot v-if="view === 'individual'" class="cal-transfer-report-wait-chart" :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
         <!-- One grid for Summary or Individual, keyed so each starts on its
              first page and its own sort; slots for columns it lacks go
@@ -378,8 +378,8 @@ const props = defineProps<{
   // between them, for the settings.
   routeChoices: { from: TransferRouteChoice[], to: TransferRouteChoice[] }
   unknownPairs: number
-  // Where trips arrive from and depart to, around the stops, for picking;
-  // and the connections as flows between them, for the Compass view.
+  // Trip origins and destinations around the stops, for trip filtering; and
+  // the connections between them as flows, for the Compass view.
   compass: { from: TransferCompassPlace[], to: TransferCompassPlace[] }
   rose: TransferRose
   missingDetails: number
@@ -542,10 +542,18 @@ function hourLabel (hour: number): string {
 const root = ref<HTMLElement>()
 const { download: save } = useDownload()
 // Narrows the trip filters to a focus, within those already set, and shows
-// Individual.
-function showInIndividual (f: TransferFocus) {
+// Individual. The trip filters open to show what they keep, and a toast says
+// what changed.
+function showFocus (f: TransferFocus, what: string) {
   settings.value = { ...settings.value, ...focusFilters(f, props.routeChoices, settings.value) }
   view.value = 'individual'
+  openSection.value = 'trips'
+  showToast(`Filtered to ${what}`)
+  // If the page is scrolled past the report's top, scroll back to the top,
+  // where the filters open.
+  if ((root.value?.getBoundingClientRect().top ?? 0) < 0) {
+    root.value?.scrollIntoView({ block: 'start' })
+  }
 }
 
 // A trip by its route and destination.
@@ -565,19 +573,14 @@ function showTooltip (row: TransferGridTrip): string {
 }
 
 // Shows a Summary row in Individual: a heading row's arrivals or, for a row
-// beneath one, only their connections onto its departing destination. The
-// trip filters open to show what they keep, and a toast says what changed.
+// beneath one, only their connections onto its departing destination.
 function showRow (row: TransferSummaryGridRow) {
   const head = row.head ? row : props.summaryGrid.find(r => r.id === row.group)!
   const arrivals = `arrivals on ${tripName(head)}`
-  showInIndividual(row.head ? { from: [row.group] } : { from: [row.group], to: [row.id.slice(row.group.length + 1)] })
-  openSection.value = 'trips'
-  showToast(row.head ? `Filtered to ${arrivals}` : `Filtered to ${arrivals} and connections onto ${tripName(row)}`)
-  // If the page is scrolled past the report's top, scroll back to the top,
-  // where the filters open.
-  if ((root.value?.getBoundingClientRect().top ?? 0) < 0) {
-    root.value?.scrollIntoView({ block: 'start' })
-  }
+  showFocus(
+    row.head ? { from: [row.group] } : { from: [row.group], to: [row.id.slice(row.group.length + 1)] },
+    row.head ? arrivals : `${arrivals} and connections onto ${tripName(row)}`,
+  )
 }
 
 // The downloads, named for the subject and date.

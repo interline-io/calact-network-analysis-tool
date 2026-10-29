@@ -360,10 +360,13 @@ export const FARE_MIN_DEFAULT = 1
 // it directly; legend.vue / map-popup.vue bind it into CSS via v-bind (no manual sync).
 export const STOP_CLUSTER_COLOR = '#d6336c'
 
-// The Transfer Analyst's stops map colors: a picked stop's, and an unpicked
-// stop's or route's.
+// The Transfer Analyst's two colors: one for what is picked, included or
+// highlighted, and one for the rest.
 export const TRANSFER_PICKED_COLOR = '#7a4dda'
 export const TRANSFER_UNPICKED_COLOR = '#5b6470'
+
+// Kilometers per degree of latitude.
+export const KM_PER_DEGREE = 111.32
 
 export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
   'state': { singular: 'State', plural: 'states' },
