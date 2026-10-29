@@ -9,10 +9,13 @@ import { useApolloClient } from '@vue/apollo-composable'
 import {
   DEFAULT_TRANSFER_SETTINGS,
   calculateTransfers,
+  centerOf,
   clusterDisplayName,
   resolveEffectiveWeekdays,
   routeLabel,
   summarizeTransfers,
+  transferCompassPlaces,
+  transferRose,
   transferEvents,
   transferGrid,
   transferOverview,
@@ -28,7 +31,7 @@ import {
   type TripSubject,
 } from '~~/src/scenario'
 import { scopeDatesToWeekdays } from '~~/src/scenario/route-headway'
-import { fmtDate, groupBy, timeWindowSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
+import { TRANSFER_STOP_REACH_METERS, fmtDate, groupBy, timeWindowSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
 import {
   parseStopDistance,
   routesById,
@@ -36,10 +39,13 @@ import {
   stopDistanceVariables,
   stopPairKey,
   stopPairs,
+  stopsNearQuery,
+  stopsNearVariables,
   type Stop,
   type StopDistanceMode,
   type StopDistanceResponse,
   type StopPoint,
+  type StopsNearResponse,
 } from '~~/src/tl'
 import type { TripDetailsStore } from './useTripPanel'
 
@@ -127,8 +133,33 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       removed: subjectStopIds.value.filter(id => !picked.has(id)),
     }
   }
+  // The middle of the subject's own stops. Only stops within
+  // TRANSFER_STOP_REACH_METERS of this point can be picked; edits leave it
+  // where it is, so picking stops never widens the reach.
+  const reachCenter = computed(() => centerOf(subjectStopIds.value.flatMap((id): [number, number][] => {
+    const [lon, lat] = stops.value.get(id)?.geometry.coordinates ?? []
+    return lon !== undefined && lat !== undefined ? [[lon, lat]] : []
+  })))
+  // The server's search for the stops with service within that reach: the
+  // same object while its center and stops are unchanged, so a URL write
+  // doesn't search again.
+  const reachSearch = computed<{ center: [number, number], ids: number[] } | undefined>((previous) => {
+    const center = reachCenter.value
+    const ids = (result.value?.stops || []).filter(s => s.marked).map(s => s.id)
+    if (!center || ids.length === 0) {
+      return undefined
+    }
+    const same = previous && previous.center.every((v, i) => v === center[i]) && previous.ids.length === ids.length && previous.ids.every((id, i) => id === ids[i])
+    return same ? previous : { center, ids }
+  })
+  // The answer to the search, kept with the search it answers, so an answer
+  // for another subject or scenario goes unused.
+  const reach = shallowRef<{ search: NonNullable<typeof reachSearch.value>, ids: Set<number> }>()
+  const reachError = ref<string | null>(null)
+  const reachable = computed(() => (reach.value && reach.value.search === reachSearch.value ? reach.value.ids : new Set<number>()))
   // Every stop with service, for adding to the subject: its name, operators,
-  // and routes, and whether it is a platform in a station.
+  // and routes, whether it is a platform in a station, and whether it is
+  // within reach.
   const mapStops = computed(() => (result.value?.stops || [])
     .filter(s => s.marked)
     .map((s) => {
@@ -141,6 +172,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
         operator: names(stopRoutes.map(r => r?.agency_name)),
         routes: names(stopRoutes.map(r => r?.route_short_name || r?.route_long_name)),
         platform: !!s.parent?.stop_id,
+        reachable: reachable.value.has(s.id),
         routeIds: s.route_stops.map(rs => rs.route_id),
         lon: lon!,
         lat: lat!,
@@ -255,6 +287,37 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     triggerRef(distances)
     settle()
     distancesLoading.value--
+  }
+
+  // The search last sent, so one in flight isn't sent again.
+  let reachAsked: typeof reachSearch.value
+  // Asks the server which stops are within reach, unless it has been asked
+  // already. A failure waits for a retry.
+  async function loadReach (): Promise<void> {
+    const search = reachSearch.value
+    if (!search || search === reachAsked) {
+      return
+    }
+    reachAsked = search
+    // The query rejects only on a network error; the server's own errors
+    // come back in the response.
+    const outcome = await resolveClient()
+      .query<StopsNearResponse>({ query: stopsNearQuery, variables: stopsNearVariables(search.ids, search.center, TRANSFER_STOP_REACH_METERS), fetchPolicy: 'no-cache', errorPolicy: 'all' })
+      .then(
+        (response): { error: string } | { ids: Set<number> } => (!response.data && response.errors?.length ? { error: response.errors[0]!.message } : { ids: new Set((response.data?.stops ?? []).map(s => s.id)) }),
+        (err: unknown) => ({ error: err instanceof Error ? err.message : String(err) }),
+      )
+    // A newer search has started, and its answer stands instead.
+    if (search !== reachSearch.value) {
+      return
+    }
+    if ('error' in outcome) {
+      // Let a retry ask again.
+      reachAsked = undefined
+      reachError.value = outcome.error
+      return
+    }
+    reach.value = { search, ids: outcome.ids }
   }
 
   const secondsPerMeter = computed(() => Math.max(0, Number(settings.value.secondsPerMeter) || 0))
@@ -396,6 +459,14 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
 
   const summary = computed(() => summarizeTransfers(dateGroups.value))
   const summaryGrid = computed(() => transferSummaryGrid(summary.value, tripInfo.value))
+  // Arriving trips' origins and departing trips' destinations, placed around
+  // the middle of the stops.
+  const compass = computed(() => {
+    const center = centerOf(stopPoints.value.map((p): [number, number] => [p.lon, p.lat]))
+    return center ? transferCompassPlaces(routeChoices.value, center) : { from: [], to: [] }
+  })
+  // The connections between those places, for the Compass view.
+  const rose = computed(() => transferRose(summary.value, compass.value, tripInfo.value))
 
   // The views' rows as flat CSV records, built on demand.
   function csvRows (kind: 'summary' | 'connections'): Record<string, unknown>[] {
@@ -410,22 +481,25 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     return g.connections.map(c => ({ hour, waitMinutes: c.wait / 60, grade: c.grade }))
   }))
 
-  // Loads the missing trip details and stop distances while the report is
-  // shown.
+  // Loads the missing trip details and stop distances, and finds the stops
+  // within reach, while the report is shown.
   //
   // Each source follows its own inputs, as distances can widen which trips
   // need details: a longer walk reaches later departures. After a failure, a
   // source waits for a retry rather than asking again at once, and the other
-  // source keeps loading.
+  // sources keep loading. The stops within reach don't hang on those picked,
+  // so are found with none picked too.
   const detailsError = ref<string | null>(null)
   async function load (): Promise<void> {
-    if (!toValue(deps.active) || stopIds.value.length === 0) {
+    if (!toValue(deps.active)) {
       return
     }
+    const picked = stopIds.value.length > 0
     await Promise.all([
-      distancesError.value ? undefined : loadDistances(),
+      reachError.value ? undefined : loadReach(),
+      !picked || distancesError.value ? undefined : loadDistances(),
       // A load that succeeds leaves another's failure for a retry to clear.
-      detailsError.value
+      !picked || detailsError.value
         ? undefined
         : store.load(events.value?.missingTripIds ?? []).then((err) => {
             if (err) {
@@ -437,19 +511,21 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   function retry (): Promise<void> {
     detailsError.value = null
     distancesError.value = null
+    reachError.value = null
     return load()
   }
   // A new scenario starts afresh, not held back by the last one's failure.
   watch(() => result.value?.stopDepartureCache, () => {
     detailsError.value = null
     distancesError.value = null
+    reachError.value = null
   })
   // Nothing is read while hidden, so the report does no work then; each
   // source compared by value, so a recompute that changes nothing loads
   // nothing.
   const active = () => toValue(deps.active)
   watch(
-    [active, () => (active() ? pairs.value : undefined), () => (active() ? distanceModes.value : undefined), () => (active() ? (events.value?.missingTripIds ?? []).join(',') : '')],
+    [active, () => (active() ? reachSearch.value : undefined), () => (active() ? pairs.value : undefined), () => (active() ? distanceModes.value : undefined), () => (active() ? (events.value?.missingTripIds ?? []).join(',') : '')],
     () => load(),
   )
 
@@ -500,6 +576,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     settings,
     breakpoints,
     routeChoices,
+    compass,
+    rose,
     missingDetails: computed(() => events.value?.missingTripIds.length ?? 0),
     csvRows,
     summaryGrid,
@@ -510,7 +588,9 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     individualGrid,
     individualPoints,
     detailsLoading: computed(() => store.loading.value || distancesLoading.value > 0),
-    detailsError: computed(() => detailsError.value ?? (distancesError.value ? `distances between stops: ${distancesError.value}` : null)),
+    detailsError: computed(() => detailsError.value
+      ?? (distancesError.value ? `distances between stops: ${distancesError.value}` : null)
+      ?? (reachError.value ? `stops within reach: ${reachError.value}` : null)),
     // Pairs of the stops with no distance to walk between them, which are
     // left out.
     unknownPairs: computed(() => (distancesLoading.value > 0 || distancesFor.value !== distancesKey.value ? 0 : walkTable.value.unknown)),

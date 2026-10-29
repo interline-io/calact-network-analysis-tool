@@ -23,9 +23,11 @@ query TripDetails($ids: [Int!], $limit: Int) {
       stop {
         id
         stop_name
+        geometry
         parent {
           id
           stop_name
+          geometry
         }
       }
     }
@@ -35,6 +37,14 @@ query TripDetails($ids: [Int!], $limit: Int) {
 // Trips per request: the stop times of each come back with it, so a request
 // stays a few thousand rows.
 export const TRIP_DETAILS_CHUNK_SIZE = 100
+
+// A stop time's stop, as the details query returns it.
+export interface TripDetailsStop {
+  id: number
+  stop_name?: string | null
+  geometry?: GeoJSON.Point | null
+  parent?: { id?: number | null, stop_name?: string | null, geometry?: GeoJSON.Point | null } | null
+}
 
 export interface TripDetailsResponse {
   trips: {
@@ -51,7 +61,7 @@ export interface TripDetailsResponse {
       stop_headsign?: string | null
       pickup_type?: number | null
       drop_off_type?: number | null
-      stop?: { id: number, stop_name?: string | null, parent?: { id?: number | null, stop_name?: string | null } | null } | null
+      stop?: TripDetailsStop | null
     } | null)[]
   }[]
 }
@@ -70,6 +80,9 @@ export interface TripDetail {
   lastStopName?: string
   // The first stop's own name and its station's, as a sign may name either.
   firstStopNames?: string[]
+  // Where those stations are, as [lon, lat].
+  firstStopPoint?: [number, number]
+  lastStopPoint?: [number, number]
   // Seconds since midnight; may run past 24:00 for after-midnight trips.
   startTime?: number
   endTime?: number
@@ -92,8 +105,20 @@ export interface TripStopTime {
   dropOffType?: number | null
 }
 
-function stationName (stop: { stop_name?: string | null, parent?: { stop_name?: string | null } | null } | null | undefined): string | undefined {
-  return stop?.parent?.stop_name || stop?.stop_name || undefined
+// A stop's station: its parent station where that has a name, else the stop
+// itself. A station's name and its point both come from the stop this
+// returns.
+function stationOf (stop: TripDetailsStop | null | undefined) {
+  return stop?.parent?.stop_name ? stop.parent : stop
+}
+
+function stationName (stop: TripDetailsStop | null | undefined): string | undefined {
+  return stationOf(stop)?.stop_name || undefined
+}
+
+function stationPoint (stop: TripDetailsStop | null | undefined): [number, number] | undefined {
+  const [lon, lat] = stationOf(stop)?.geometry?.coordinates ?? []
+  return lon === undefined || lat === undefined ? undefined : [lon, lat]
 }
 
 // The API returns Seconds as "HH:MM:SS"; accept a number too.
@@ -144,6 +169,8 @@ export function parseTripDetails (data: TripDetailsResponse | undefined): TripDe
       firstStopName: stationName(stopTimes[0]?.stop),
       lastStopName: stationName(stopTimes[stopTimes.length - 1]?.stop),
       firstStopNames: [stopTimes[0]?.stop?.stop_name, stopTimes[0]?.stop?.parent?.stop_name].filter((n): n is string => !!n),
+      firstStopPoint: stationPoint(stopTimes[0]?.stop),
+      lastStopPoint: stationPoint(stopTimes[stopTimes.length - 1]?.stop),
       startTime,
       endTime,
       stopCount: t.stop_times.length,

@@ -35,6 +35,9 @@ export interface TransferEvent {
   // Where the trip starts and ends, by station, and how many stops it makes.
   origin?: string
   terminus?: string
+  // Where those stations are, as [lon, lat].
+  originPoint?: [number, number]
+  terminusPoint?: [number, number]
   // The first stop's own name and its station's.
   originNames?: string[]
   stopCount?: number
@@ -136,6 +139,9 @@ export function transferTripKey (e: Pick<TransferEvent, 'routeId' | 'directionId
 export interface TransferTripRun {
   origin?: string
   terminus?: string
+  // Where those stations are, as [lon, lat].
+  originPoint?: [number, number]
+  terminusPoint?: [number, number]
   stopCount?: number
 }
 
@@ -211,9 +217,13 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
     const directions = [...groupBy(routeEvents, e => e.directionId)].map(([directionId, directionEvents]) => {
       const destinations: TransferTripDestination[] = [...groupBy(directionEvents, e => e.headsign ?? '')]
         .map(([headsign, trips]) => {
+          const origin = mostCommon(trips.flatMap(e => e.origin || []))
+          const terminus = mostCommon(trips.flatMap(e => e.terminus || []))
           const run = {
-            origin: mostCommon(trips.flatMap(e => e.origin || [])),
-            terminus: mostCommon(trips.flatMap(e => e.terminus || [])),
+            origin,
+            terminus,
+            originPoint: stationPoint(trips, origin, 'origin'),
+            terminusPoint: stationPoint(trips, terminus, 'terminus'),
             stopCount: mostCommon(trips.flatMap(e => e.stopCount ?? [])),
           }
           const terminal = trips.filter(e => e.terminal).length
@@ -634,7 +644,9 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
           headsign,
           origin: detail.firstStopName,
           terminus: detail.lastStopName,
+          originPoint: detail.firstStopPoint,
           originNames: detail.firstStopNames,
+          terminusPoint: detail.lastStopPoint,
           stopCount: detail.stopCount,
           prevStation,
           nextStation,
@@ -866,6 +878,21 @@ function mostCommon<T extends string | number> (values: T[]): T | undefined {
   return best
 }
 
+// The first point some trips give for a station at one end, by its name.
+// The other end is never read, as a shuttle's two ends may share a name.
+function stationPoint (trips: TransferEvent[], name: string | undefined, end: 'origin' | 'terminus'): [number, number] | undefined {
+  if (name === undefined) {
+    return undefined
+  }
+  for (const e of trips) {
+    const [at, point] = end === 'origin' ? [e.origin, e.originPoint] : [e.terminus, e.terminusPoint]
+    if (at === name && point) {
+      return point
+    }
+  }
+  return undefined
+}
+
 // One trip's route, direction, and destination (transferTripKey).
 export interface TransferTripRef {
   key: string
@@ -898,10 +925,11 @@ export interface TransferArrivalSummary {
   pairs: TransferPairSummary[]
 }
 
-// The arriving destinations (transferTripKey) of a Summary row, and
-// optionally departing ones, that narrow the trip filters.
+// The arriving and departing destinations (transferTripKey) that a Summary or
+// Compass row keeps as it narrows the trip filters. A side left unset stays
+// as it is.
 export interface TransferFocus {
-  from: string[]
+  from?: string[]
   to?: string[]
 }
 
@@ -909,8 +937,7 @@ type TransferExclusions = Pick<TransferSettings, 'excludedFrom' | 'excludedTo'>
 
 // The trip filters narrowed to a focus.
 //
-// Every arriving destination outside the focus is left out too, and, where
-// the focus names departing ones, so is every departing one outside those.
+// On each side the focus names, every destination outside it is left out too.
 // Arriving and departing trips are filtered separately, so a focus of several
 // pairs keeps any pair among them.
 export function focusFilters (focus: TransferFocus, choices: { from: TransferRouteChoice[], to: TransferRouteChoice[] }, current: TransferExclusions): TransferExclusions {
@@ -920,7 +947,7 @@ export function focusFilters (focus: TransferFocus, choices: { from: TransferRou
     return [...new Set([...excluded, ...all.filter(k => !keep.has(k))])]
   }
   return {
-    excludedFrom: outside(keys(choices.from), focus.from, current.excludedFrom),
+    excludedFrom: focus.from ? outside(keys(choices.from), focus.from, current.excludedFrom) : current.excludedFrom,
     excludedTo: focus.to ? outside(keys(choices.to), focus.to, current.excludedTo) : current.excludedTo,
   }
 }

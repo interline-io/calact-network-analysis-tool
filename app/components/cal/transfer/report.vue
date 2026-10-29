@@ -98,9 +98,12 @@
             <cat-dropdown-item value="connections" :disabled="detailsLoading">
               Download individual report (CSV)
             </cat-dropdown-item>
-            <!-- The chart as drawn, so only from the Individual view. -->
+            <!-- Each chart as drawn, so only from its own view. -->
             <cat-dropdown-item value="wait-chart" :disabled="view !== 'individual' || detailsLoading">
               Download wait chart (SVG){{ view === 'individual' ? '' : ' (Individual view)' }}
+            </cat-dropdown-item>
+            <cat-dropdown-item value="compass-chart" :disabled="view !== 'compass' || detailsLoading">
+              Download compass chart (SVG){{ view === 'compass' ? '' : ' (Compass view)' }}
             </cat-dropdown-item>
           </cat-dropdown>
         </div>
@@ -125,6 +128,7 @@
           v-model="settings"
           :section="openSection === 'trips' ? 'trips' : 'wait-walk'"
           :route-choices="routeChoices"
+          :compass="compass"
           :unknown-pairs="unknownPairs"
           @open-trips="$emit('openTrips', $event)"
         />
@@ -211,11 +215,15 @@
           </dl>
           <cal-plot class="column mb-0 cal-transfer-report-grades" :options="gradeBar" :label="gradeChartLabel(overview.grades)" />
         </div>
+        <!-- The connections as flows from trips' origins, through the stops,
+             to their destinations. -->
+        <cal-transfer-rose v-if="view === 'compass'" ref="roseChart" :rose="rose" :loading="detailsLoading" @show="showFocus" />
         <cal-plot v-if="view === 'individual'" class="cal-transfer-report-wait-chart" :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
         <!-- One grid for Summary or Individual, keyed so each starts on its
              first page and its own sort; slots for columns it lacks go
              unused. -->
         <cal-datagrid
+          v-if="view !== 'compass'"
           :key="view"
           sticky-header
           :searchable="false"
@@ -308,9 +316,11 @@ import {
   focusFilters,
   formatWait,
   tripTimeLabel,
+  type TransferCompassPlace,
   type TransferGrade,
   type TransferFocus,
   type TransferGradeCount,
+  type TransferRose,
   type TransferGridRow,
   type TransferGridTrip,
   type TransferRouteChoice,
@@ -323,8 +333,8 @@ import { csvString } from '~/utils/download'
 import { useDownload } from '@interline-io/catenary'
 import { useToastNotification } from '~/composables/useToastNotification'
 
-// The report's two views.
-export type TransferReportView = 'summary' | 'individual'
+// The report's views.
+export type TransferReportView = 'summary' | 'individual' | 'compass'
 // A settings panel the toolbar opens.
 export type TransferReportSection = TransferSettingsSection | 'stops'
 
@@ -368,6 +378,10 @@ const props = defineProps<{
   // between them, for the settings.
   routeChoices: { from: TransferRouteChoice[], to: TransferRouteChoice[] }
   unknownPairs: number
+  // Trip origins and destinations around the stops, for trip filtering; and
+  // the connections between them as flows, for the Compass view.
+  compass: { from: TransferCompassPlace[], to: TransferCompassPlace[] }
+  rose: TransferRose
   missingDetails: number
   detailsLoading: boolean
   detailsError: string | null
@@ -448,6 +462,7 @@ const settingsToggles = computed((): { section: TransferReportSection, label: st
 const views: { value: TransferReportView, label: string, icon: string }[] = [
   { value: 'summary', label: 'Summary', icon: 'table-large' },
   { value: 'individual', label: 'Individual', icon: 'clock-outline' },
+  { value: 'compass', label: 'Compass', icon: 'compass-rose' },
 ]
 
 function minutes (seconds: number): number {
@@ -527,16 +542,27 @@ function hourLabel (hour: number): string {
 const root = ref<HTMLElement>()
 const { download: save } = useDownload()
 // Narrows the trip filters to a focus, within those already set, and shows
-// Individual.
-function showInIndividual (f: TransferFocus) {
+// Individual. The trip filters open to show what they keep, and a toast says
+// what changed.
+function showFocus (f: TransferFocus, what: string) {
   settings.value = { ...settings.value, ...focusFilters(f, props.routeChoices, settings.value) }
   view.value = 'individual'
+  openSection.value = 'trips'
+  showToast(`Filtered to ${what}`)
+  // If the page is scrolled past the report's top, scroll back to the top,
+  // where the filters open.
+  if ((root.value?.getBoundingClientRect().top ?? 0) < 0) {
+    root.value?.scrollIntoView({ block: 'start' })
+  }
 }
 
 // A trip by its route and destination.
 function tripName (row: TransferGridTrip): string {
   return `${row.route_name} ${row.headsign}`
 }
+
+// The Compass view's rose, which draws its own SVG for download.
+const roseChart = ref<{ toSvg: () => string }>()
 
 const { showToast } = useToastNotification()
 
@@ -547,23 +573,18 @@ function showTooltip (row: TransferGridTrip): string {
 }
 
 // Shows a Summary row in Individual: a heading row's arrivals or, for a row
-// beneath one, only their connections onto its departing destination. The
-// trip filters open to show what they keep, and a toast says what changed.
+// beneath one, only their connections onto its departing destination.
 function showRow (row: TransferSummaryGridRow) {
   const head = row.head ? row : props.summaryGrid.find(r => r.id === row.group)!
   const arrivals = `arrivals on ${tripName(head)}`
-  showInIndividual(row.head ? { from: [row.group] } : { from: [row.group], to: [row.id.slice(row.group.length + 1)] })
-  openSection.value = 'trips'
-  showToast(row.head ? `Filtered to ${arrivals}` : `Filtered to ${arrivals} and connections onto ${tripName(row)}`)
-  // If the page is scrolled past the report's top, scroll back to the top,
-  // where the filters open.
-  if ((root.value?.getBoundingClientRect().top ?? 0) < 0) {
-    root.value?.scrollIntoView({ block: 'start' })
-  }
+  showFocus(
+    row.head ? { from: [row.group] } : { from: [row.group], to: [row.id.slice(row.group.length + 1)] },
+    row.head ? arrivals : `${arrivals} and connections onto ${tripName(row)}`,
+  )
 }
 
 // The downloads, named for the subject and date.
-async function download (what: 'link' | 'summary' | 'connections' | 'wait-chart') {
+async function download (what: 'link' | 'summary' | 'connections' | 'wait-chart' | 'compass-chart') {
   if (what === 'link') {
     try {
       await navigator.clipboard.writeText(props.shareUrl())
@@ -576,6 +597,11 @@ async function download (what: 'link' | 'summary' | 'connections' | 'wait-chart'
   const name = (kind: string) => `transfers-${kind}-${props.individualDate ?? ''}-${props.title}`
   if (what === 'summary' || what === 'connections') {
     save({ filename: `${name(what === 'summary' ? 'summary' : 'individual')}.csv`, data: csvString(props.csvRows(what)), mimeType: 'text/csv' })
+  } else if (what === 'compass-chart') {
+    const svg = roseChart.value?.toSvg()
+    if (svg) {
+      save({ filename: `${name('compass')}.svg`, data: svg, mimeType: 'image/svg+xml' })
+    }
   } else {
     // The bar of connections by grade over the chart, as its legend.
     const svgs = ['.cal-transfer-report-grades svg', '.cal-transfer-report-wait-chart svg']

@@ -57,19 +57,20 @@ describe('parseTripDetails', () => {
     expect(tripHeadsignAt({ ...t!, headsign: 'Gateway' }, 11)).toBe('Gateway')
   })
 
-  it('names where a trip ends by its last stop\'s parent station, where it has one', () => {
+  it('names and places where a trip ends by its last stop\'s parent station, where it has one', () => {
+    const point = (lon: number, lat: number): GeoJSON.Point => ({ type: 'Point', coordinates: [lon, lat] })
     const [t] = parseTripDetails({
       trips: [{
         id: 4,
         trip_id: 't4',
         trip_headsign: null,
         stop_times: [
-          { stop_sequence: 1, departure_time: '08:00:00', stop: { id: 10, stop_name: 'Start' } },
-          { stop_sequence: 2, arrival_time: '08:20:00', stop: { id: 12, stop_name: 'Platform 2', parent: { stop_name: 'Union Station' } } },
+          { stop_sequence: 1, departure_time: '08:00:00', stop: { id: 10, stop_name: 'Start', geometry: point(-122.7, 45.5) } },
+          { stop_sequence: 2, arrival_time: '08:20:00', stop: { id: 12, stop_name: 'Platform 2', geometry: point(-122.6767, 45.5293), parent: { stop_name: 'Union Station', geometry: point(-122.6765, 45.5290) } } },
         ],
       }],
     })
-    expect(t?.lastStopName).toBe('Union Station')
+    expect(t).toMatchObject({ firstStopName: 'Start', firstStopPoint: [-122.7, 45.5], lastStopName: 'Union Station', lastStopPoint: [-122.6765, 45.529] })
   })
 
   it('reads around stop times the API returned as null, still counting them as stops', () => {
@@ -112,6 +113,8 @@ describe('tripDetailsQuery (integration)', () => {
     const details = parseTripDetails(result.data)
     expect(details.map(d => d.id).sort()).toEqual([...ids].sort())
     for (const d of details) {
+      expect(d.firstStopPoint).toHaveLength(2)
+      expect(d.lastStopPoint).toHaveLength(2)
       expect(d.stopTimes.length).toBe(d.stopCount)
       const departures = d.stopTimes.map(st => st.departure ?? st.arrival).filter(t => t !== undefined)
       expect(departures).toEqual([...departures].sort((a, b) => a - b))

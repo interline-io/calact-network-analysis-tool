@@ -112,6 +112,13 @@
             None
           </button>
         </p>
+        <cal-transfer-compass
+          class="mb-3"
+          :side="side.trip"
+          :places="compass[side.trip]"
+          :excluded="settings[side.key]"
+          @toggle="(keys, included) => setKeys(side.key, keys, included)"
+        />
         <ul class="cal-transfer-settings-list">
           <li
             v-for="row of side.rows"
@@ -171,6 +178,7 @@ import {
   choiceDestinations,
   validBreakpoints,
   transferTripTags,
+  type TransferCompassPlace,
   type TransferRouteChoice,
   type TransferSettings,
   type TransferTripDestination,
@@ -186,6 +194,9 @@ const props = defineProps<{
   section: TransferSettingsSection
   // The routes arriving and departing at the stops.
   routeChoices: { from: TransferRouteChoice[], to: TransferRouteChoice[] }
+  // Arriving trips' origins and departing trips' destinations, around the
+  // stops.
+  compass: { from: TransferCompassPlace[], to: TransferCompassPlace[] }
   // Pairs of the stops with no distance between them.
   unknownPairs: number
 }>()
@@ -373,15 +384,15 @@ function routeRows (side: Side, routes: TransferRouteChoice[], base = 0): Omit<R
 // Each side's rows, with their checkbox state read from one set of the
 // side's exclusions.
 const sides = computed(() => [
-  { key: 'excludedFrom' as const, legend: 'Arriving', routes: props.routeChoices.from },
-  { key: 'excludedTo' as const, legend: 'Departing', routes: props.routeChoices.to },
+  { key: 'excludedFrom' as const, trip: 'from' as const, legend: 'Arriving', routes: props.routeChoices.from },
+  { key: 'excludedTo' as const, trip: 'to' as const, legend: 'Departing', routes: props.routeChoices.to },
 ].map((side) => {
   const excluded = new Set(settings.value[side.key])
   const rowsWithState = rows(side.key, side.routes).map((row) => {
     const out = row.keys.filter(k => excluded.has(k)).length
     return { ...row, state: out === 0 ? 'all' as const : out === row.keys.length ? 'none' as const : 'some' as const }
   })
-  return { key: side.key, legend: side.legend, rows: rowsWithState }
+  return { key: side.key, trip: side.trip, legend: side.legend, rows: rowsWithState }
 }))
 
 function setKeys (side: Side, keys: string[], included: boolean) {

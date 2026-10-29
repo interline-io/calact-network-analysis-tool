@@ -1,6 +1,7 @@
 // Distances between stops, from the Transitland directions API: straight-line
-// (mode LINE) or along the street network (mode WALK). The server computes
-// both; nothing here measures geometry.
+// (mode LINE) or along the street network (mode WALK); and which stops lie
+// within a radius of a point, from its stops search. The server measures all
+// of them.
 
 import { gql } from 'graphql-tag'
 
@@ -54,6 +55,28 @@ export interface StopDistanceResponse {
     success: boolean
     distance?: { distance: number, units: 'KILOMETERS' | 'METERS' | 'MILES' } | null
   } | null
+}
+
+// Which of some stops lie within a radius of a point.
+export const stopsNearQuery = gql`
+query StopsNear($ids: [Int!], $near: PointRadius!, $limit: Int) {
+  stops(ids: $ids, limit: $limit, where: { location: { near: $near } }) {
+    id
+  }
+}`
+
+// The most stops the server returns from one search.
+export const STOPS_NEAR_LIMIT = 1000
+
+// The variables for stopsNearQuery: the stops to check, and the [lon, lat]
+// and radius in meters to check them against.
+export function stopsNearVariables (ids: number[], center: [number, number], meters: number) {
+  return { ids, near: { lon: center[0], lat: center[1], radius: meters }, limit: STOPS_NEAR_LIMIT }
+}
+
+// The response to stopsNearQuery.
+export interface StopsNearResponse {
+  stops: { id: number }[]
 }
 
 const METERS_PER_UNIT: Record<string, number> = { KILOMETERS: 1000, METERS: 1, MILES: 1609.344 }
