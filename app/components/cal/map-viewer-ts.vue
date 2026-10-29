@@ -6,6 +6,8 @@
 import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from 'vue'
 import * as maplibre from 'maplibre-gl'
 import { BASEMAP_ATTRIBUTION, basemapStyle, protomapsLabelLayers } from '~/utils/basemap'
+import { VehicleTrailLayer } from '~/utils/vehicle-trail-layer'
+import type { TrailSegments } from '~~/src/scenario'
 import { useRuntimeConfig } from '#imports'
 import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
 import { STOP_AGG_ELEMENT_IDS, STOP_CLUSTER_COLOR, densityUnitLabel, formatCensusValue } from '~~/src/core'
@@ -47,6 +49,11 @@ const clusterLineFeatures = defineModel<Feature[]>('clusterLineFeatures', { defa
 const clusterMarkers = defineModel<{ id: string, point: Point, colors: string[] }[]>('clusterMarkers', { default: () => [] })
 // vehicle playback positions, redrawn every animation frame while it plays.
 const vehicleFeatures = defineModel<Feature[]>('vehicleFeatures', { default: () => [] })
+// vehicle trails, uploaded to the GPU once; the playback time they fade by,
+// and how long they take to fade.
+const vehicleTrails = defineModel<TrailSegments | undefined>('vehicleTrails')
+const vehicleTime = defineModel<number>('vehicleTime', { default: 0 })
+const vehicleTrailSeconds = defineModel<number>('vehicleTrailSeconds', { default: 0 })
 const markers = defineModel<MarkerFeature[]>('markers', { default: () => [] })
 const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: () => [] })
 const mapClass = defineModel<string>('mapClass', { default: 'short' })
@@ -74,6 +81,7 @@ const { unitSystem, isAllDayMode } = useScenarioDisplay()
 const skipUpdateStages = new Set(['departures'])
 
 let map: (maplibre.Map | undefined) = undefined
+let trailLayer: VehicleTrailLayer | undefined
 const markerLayer = ref<maplibre.Marker[]>([])
 const clusterMarkerLayer = ref<maplibre.Marker[]>([])
 let geoHoverPopup: maplibre.Popup | undefined
@@ -144,6 +152,18 @@ watch(() => clusterLineFeatures.value, (v) => {
 
 watch(() => vehicleFeatures.value, (v) => {
   updateVehicleFeatures(v)
+})
+
+watch(() => vehicleTrails.value, (v) => {
+  trailLayer?.setSegments(v)
+})
+
+watch(() => vehicleTime.value, (v) => {
+  trailLayer?.setTime(v)
+})
+
+watch(() => vehicleTrailSeconds.value, (v) => {
+  trailLayer?.setTrailSeconds(v)
 })
 
 watch(() => clusterMarkers.value, (v) => {
@@ -257,6 +277,9 @@ function initMap () {
     updateClusterCircle(clusterCircleFeatures.value)
     updateClusterLines(clusterLineFeatures.value)
     updateVehicleFeatures(vehicleFeatures.value)
+    trailLayer?.setSegments(vehicleTrails.value)
+    trailLayer?.setTime(vehicleTime.value)
+    trailLayer?.setTrailSeconds(vehicleTrailSeconds.value)
     drawClusterMarkers(clusterMarkers.value)
     map?.on('mousemove', mapMouseMove)
     map?.on('click', mapClick)
@@ -711,6 +734,9 @@ function createLayers () {
       'circle-stroke-width': 1.5,
     }
   })
+  // Trails just below the vehicles leaving them.
+  trailLayer = new VehicleTrailLayer()
+  map?.addLayer(trailLayer, 'vehicles')
 
   // Highlight layers for selected features (rendered on top)
   map?.addLayer({

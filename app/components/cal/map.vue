@@ -52,6 +52,9 @@
       :cluster-line-features="clusterLineFeatures"
       :cluster-markers="clusterMarkers"
       :vehicle-features="vehicleFeatures"
+      :vehicle-trails="vehicleTrails"
+      :vehicle-time="props.vehicleTime"
+      :vehicle-trail-seconds="props.vehicleTrailSeconds"
       :markers="bboxMarkers"
       :popup-features="popupFeatures"
       :loading-stage="props.loadingStage"
@@ -79,7 +82,7 @@ import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById, vehiclePosition, type VehicleTrack } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo, QueryPolygon } from '~~/src/core'
 import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
-import { buildStyleData, clusterDisplayName, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
+import { buildStyleData, buildTrailSegments, clusterDisplayName, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TrailSegments, type TripSubject } from '~~/src/scenario'
 
 const emit = defineEmits<{
   setMapExtent: [value: Bbox, userInitiated: boolean]
@@ -120,11 +123,13 @@ const props = defineProps<{
   sidebarPanelOpen?: boolean
   // Increment to clear the selection, as when the trip panel is closed.
   clearSelectionKey?: number
-  // The vehicle playback's time in seconds from midnight.
+  // The vehicle playback's time in seconds from midnight, and how long its
+  // trails take to fade, in schedule seconds.
   vehicleTime?: number
+  vehicleTrailSeconds?: number
 }>()
 
-const { dataDisplayMode, hideUnmarked, showVehicles } = useScenarioDisplay()
+const { dataDisplayMode, hideUnmarked, showVehicles, showStopsWithVehicles, showRoutesWithVehicles } = useScenarioDisplay()
 const { bbox, geographyIds, geomSource, geomLayer, fixedRouteEnabled } = useScenarioInputs()
 const { flexServicesEnabled, flexColorBy } = useScenarioFilters()
 
@@ -668,8 +673,9 @@ const displayFeatures = computed((): Feature[] => {
   const styleRules = styleData.value || []
   const forDisplay: Feature[] = []
 
-  // Gather routes
-  for (const rp of props.scenarioFilterResult?.routes || []) {
+  // Gather routes, unless they are turned off for the playback.
+  const routes = showVehicles.value && !showRoutesWithVehicles.value ? [] : props.scenarioFilterResult?.routes || []
+  for (const rp of routes) {
     if (hideUnmarked.value && !rp.marked) {
       continue
     }
@@ -708,8 +714,10 @@ const displayFeatures = computed((): Feature[] => {
   const memberSet = selectedMemberSet.value
   const clusterActive = memberSet.size > 0
 
-  // Gather stops
-  for (const sp of props.scenarioFilterResult?.stops || []) {
+  // Gather stops, unless the playback is on and they would be mistaken for
+  // vehicles.
+  const stops = showVehicles.value && !showStopsWithVehicles.value ? [] : props.scenarioFilterResult?.stops || []
+  for (const sp of stops) {
     if (clusterActive) {
       // focused on a cluster: show only its members, regardless of marked state
       if (!memberSet.has(sp.id)) {
@@ -787,6 +795,16 @@ const vehicleFeatures = computed((): Feature[] => {
     })
   }
   return out
+})
+
+// The trails behind those vehicles, rebuilt when the tracks or the filters
+// change rather than every frame.
+const vehicleTrails = computed((): TrailSegments | undefined => {
+  const tracks = vehicleTracks()
+  if (tracks.length === 0 || fixedRouteEnabled.value === false) {
+    return undefined
+  }
+  return buildTrailSegments(tracks, vehicleRouteColors.value)
 })
 
 // Features for export: the marked features from the layers currently

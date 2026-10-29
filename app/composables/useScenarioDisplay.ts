@@ -27,6 +27,8 @@ interface ScenarioDisplay {
   unitSystem: WritableComputedRef<UnitSystem>
   showBbox: WritableComputedRef<boolean>
   showVehicles: WritableComputedRef<boolean>
+  showStopsWithVehicles: WritableComputedRef<boolean>
+  showRoutesWithVehicles: WritableComputedRef<boolean>
   isAllDayMode: ComputedRef<boolean>
 }
 
@@ -114,6 +116,21 @@ export function useScenarioDisplay (): ScenarioDisplay {
     set: (v) => { setQuery({ showVehicles: v ? 'true' : undefined }) }
   })
 
+  // Whether stop dots stay on the map during the playback, where they are
+  // hard to tell from vehicles. Default true; only the off state is persisted
+  // to the URL.
+  const showStopsWithVehicles = computed<boolean>({
+    get: () => query.value.showStopsWithVehicles?.toString() !== 'false',
+    set: (v) => { setQuery({ showStopsWithVehicles: v ? undefined : 'false' }) }
+  })
+
+  // Likewise for route lines, which the trails run over. Default true; only
+  // the off state is persisted to the URL.
+  const showRoutesWithVehicles = computed<boolean>({
+    get: () => query.value.showRoutesWithVehicles?.toString() !== 'false',
+    set: (v) => { setQuery({ showRoutesWithVehicles: v ? undefined : 'false' }) }
+  })
+
   // Derived from filter state; read-only.
   const isAllDayMode = computed(() => !query.value.startTime && !query.value.endTime)
 
@@ -131,6 +148,8 @@ export function useScenarioDisplay (): ScenarioDisplay {
     unitSystem,
     showBbox,
     showVehicles,
+    showStopsWithVehicles,
+    showRoutesWithVehicles,
     isAllDayMode,
   }
 }

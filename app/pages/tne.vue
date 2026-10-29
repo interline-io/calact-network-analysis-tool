@@ -110,6 +110,7 @@
           :sidebar-panel-open="!!tripPanelSubject || !!selectedPanelData?.row"
           :clear-selection-key="mapSelectionClearKey"
           :vehicle-time="vehicleTime"
+          :vehicle-trail-seconds="vehicleTrailSeconds"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
@@ -148,6 +149,7 @@
         <cal-vehicle-player
           v-if="showVehicles && (scenarioFilterResult?.vehicleTracks?.length ?? 0) > 0"
           v-model:time="vehicleTime"
+          v-model:trail-seconds="vehicleTrailSeconds"
           :date="vehiclePlaybackDay"
           :panel-width="activeTabPanelWidth"
         />
@@ -1170,6 +1172,8 @@ useVehicleTracksRefetch({
 const vehiclePlaybackDay = computed(() => vehiclePlaybackDate(scenarioConfig.value))
 // Seconds from midnight. Opens on the morning peak, when there is most to see.
 const vehicleTime = ref(8 * 3600)
+// How long a vehicle's trail takes to fade, in schedule seconds.
+const vehicleTrailSeconds = ref(600)
 
 /////////////////
 // Filter tags
@@ -1336,6 +1340,8 @@ async function resetFilters () {
     showStopBuffer: undefined,
     showBbox: undefined,
     showVehicles: undefined,
+    showStopsWithVehicles: undefined,
+    showRoutesWithVehicles: undefined,
     dataDisplayMode: undefined,
   })
 }

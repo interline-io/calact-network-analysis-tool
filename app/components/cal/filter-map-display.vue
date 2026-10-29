@@ -132,9 +132,19 @@
       </li>
       <li>
         <cat-checkbox v-model="showVehicles">
-          Show vehicles <cat-tooltip text="Play back a day of service: each vehicle on the routes shown moves by its schedule, in a straight line from stop to stop. Turning this on loads every trip these routes run on the query's start date.">
+          Show vehicles <cat-tooltip text="Play back a day of service: each vehicle on the routes shown moves by its schedule, in a straight line from stop to stop, with a fading trail. Turning this on loads every trip these routes run on the query's start date.">
             <i class="mdi mdi-information-outline" />
           </cat-tooltip>
+        </cat-checkbox>
+      </li>
+      <li>
+        <cat-checkbox v-model="showStopsWithVehicles" :disabled="!showVehicles">
+          Show stops with vehicles
+        </cat-checkbox>
+      </li>
+      <li>
+        <cat-checkbox v-model="showRoutesWithVehicles" :disabled="!showVehicles">
+          Show routes with vehicles
         </cat-checkbox>
       </li>
     </ul>
@@ -169,6 +179,8 @@ const {
   baseMap,
   showBbox,
   showVehicles,
+  showStopsWithVehicles,
+  showRoutesWithVehicles,
 } = useScenarioDisplay()
 const { stopBufferRadius } = useScenarioInputs()
 

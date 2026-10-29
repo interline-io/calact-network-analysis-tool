@@ -31,6 +31,11 @@
           {{ s }}×
         </option>
       </cat-select>
+      <cat-select v-model="trailOption" v-bind="{ ariaLabel: 'Trail length' }">
+        <option v-for="m of TRAIL_MINUTES" :key="m" :value="String(m)">
+          {{ m === 0 ? 'No trail' : `${m} min trail` }}
+        </option>
+      </cat-select>
       <span class="cal-vehicle-player-clock">
         {{ formatGtfsTime(Math.floor(time)) }}
       </span>
@@ -53,6 +58,8 @@ const SECONDS_PER_DAY = 86400
 const STEP_SECONDS = 60
 // Playback seconds per real second.
 const SPEEDS = [1, 10, 60, 300, 900]
+// How far back a vehicle's trail reaches, in schedule minutes.
+const TRAIL_MINUTES = [0, 2, 5, 10, 20, 30, 60]
 
 const props = defineProps<{
   // The vehicles' service day, for the label.
@@ -69,6 +76,13 @@ const playerLeft = computed(() => {
 
 // Seconds from midnight of the day.
 const time = defineModel<number>('time', { default: 0 })
+// Schedule seconds a trail takes to fade out; 0 draws none.
+const trailSeconds = defineModel<number>('trailSeconds', { default: 0 })
+// In minutes and as a string, as cat-select models its options.
+const trailOption = computed({
+  get: () => String(trailSeconds.value / 60),
+  set: (v: string) => { trailSeconds.value = Number(v) * 60 },
+})
 
 // 1 plays forward, -1 backward, 0 is paused.
 const direction = ref<-1 | 0 | 1>(0)
