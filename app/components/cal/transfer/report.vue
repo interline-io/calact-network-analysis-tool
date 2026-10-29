@@ -217,7 +217,7 @@
         </div>
         <!-- The connections as flows from trips' origins, through the stops,
              to their destinations. -->
-        <cal-transfer-rose v-if="view === 'compass'" ref="roseChart" :rose="rose" @show="showFocus" />
+        <cal-transfer-rose v-if="view === 'compass'" ref="roseChart" :rose="rose" :loading="detailsLoading" @show="showFocus" />
         <cal-plot v-if="view === 'individual'" class="cal-transfer-report-wait-chart" :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
         <!-- One grid for Summary or Individual, keyed so each starts on its
              first page and its own sort; slots for columns it lacks go

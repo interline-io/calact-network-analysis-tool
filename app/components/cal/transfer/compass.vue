@@ -5,7 +5,7 @@
   <figure :aria-label="side === 'from' ? 'Origins of arriving trips' : 'Destinations of departing trips'">
     <!-- The frame keeps its size while empty, so the list below stays put as
          places arrive. -->
-    <div class="is-relative cal-transfer-compass-frame">
+    <div ref="frame" class="is-relative cal-transfer-compass-frame">
       <svg :viewBox="`${-WIDTH / 2} ${-HEIGHT / 2} ${WIDTH} ${HEIGHT}`" class="is-block" aria-hidden="true">
         <defs>
           <marker v-for="m of MARKERS" :id="`${uid}-${m.id}`" :key="m.id" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
@@ -19,10 +19,16 @@
             <text :x="ring.x" :y="ring.y" text-anchor="middle" dominant-baseline="middle">{{ ring.km }} km</text>
           </template>
         </g>
-        <!-- A leader from each place whose label was moved. -->
-        <template v-for="p of layout" :key="`leader-${p.key}`">
-          <line v-if="Math.abs(p.labelY - p.y) > 2" class="cal-transfer-compass-leader" :x1="p.x" :y1="p.y" :x2="p.labelX" :y2="p.labelY" />
-        </template>
+        <!-- A leader from each labeled place to its label. -->
+        <line
+          v-for="l of labels"
+          :key="`leader-${l.key}`"
+          class="cal-transfer-compass-leader"
+          :x1="l.x"
+          :y1="l.y"
+          :x2="l.left ? 2 - LABEL_X : LABEL_X - 2"
+          :y2="l.labelY"
+        />
         <!-- A line to each place, arrowed in the trips' direction. -->
         <line
           v-for="p of layout"
@@ -32,6 +38,7 @@
           v-bind="arrowEnds(p)"
           :marker-end="`url(#${uid}-${p.state === 'none' ? 'off' : 'on'})`"
         />
+        <!-- A place without room for a label still names itself on hover. -->
         <circle
           v-for="p of layout"
           :key="`dot-${p.key}`"
@@ -40,14 +47,17 @@
           :cx="p.x"
           :cy="p.y"
           :r="p.dot"
-          @click="toggle(p.keys, p.state === 'all')"
-        />
+          @click="toggle(p.keys, p.state)"
+        >
+          <title>{{ p.text }}</title>
+        </circle>
         <circle v-if="layout.length > 0" r="5" fill="currentColor" />
       </svg>
       <p v-if="layout.length === 0" class="is-overlay is-flex is-align-items-center is-justify-content-center has-text-grey">
         No places to show.
       </p>
-      <!-- Compass points, each toggling the trips of the places that way. -->
+      <!-- Compass points, each toggling the trips of the places drawn that
+           way. -->
       <cat-tooltip
         v-for="s of sectors"
         :key="s.short"
@@ -60,7 +70,7 @@
           class="cal-link-button has-text-weight-semibold"
           :disabled="s.keys.length === 0"
           :aria-label="s.text"
-          @click="toggle(s.keys, s.all)"
+          @click="toggle(s.keys, s.state)"
           @mouseenter="hoveredSector = s.index"
           @mouseleave="hoveredSector = undefined"
           @focus="hoveredSector = s.index"
@@ -69,23 +79,23 @@
           {{ s.short }}
         </button>
       </cat-tooltip>
-      <!-- Each place's name, toggling its trips. -->
+      <!-- Each labeled place's name, toggling its trips. -->
       <cat-tooltip
-        v-for="p of layout"
-        :key="`label-${p.key}`"
-        :text="p.text"
+        v-for="l of labels"
+        :key="`label-${l.key}`"
+        :text="l.text"
         class="cal-transfer-compass-label"
-        :class="{ 'cal-transfer-compass-label-left': p.labelX < 0 }"
-        :style="at(p.labelX, p.labelY)"
+        :class="{ 'cal-transfer-compass-label-left': l.left }"
+        :style="at(l.left ? -LABEL_X : LABEL_X, l.labelY)"
       >
         <button
           type="button"
           class="cal-link-button"
-          :class="{ 'has-text-grey': p.state === 'none' }"
-          :aria-pressed="p.state === 'all' ? 'true' : p.state === 'some' ? 'mixed' : 'false'"
-          @click="toggle(p.keys, p.state === 'all')"
+          :class="{ 'has-text-grey': l.state === 'none' }"
+          :aria-pressed="l.state === 'all' ? 'true' : l.state === 'some' ? 'mixed' : 'false'"
+          @click="toggle(l.keys, l.state)"
         >
-          {{ p.name }}
+          {{ l.name }}
         </button>
       </cat-tooltip>
     </div>
@@ -95,7 +105,8 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
 import { TRANSFER_PICKED_COLOR, TRANSFER_UNPICKED_COLOR } from '~~/src/core'
-import { along, compassRings, compassScale, quietBearing, spreadBearings, spreadLabels, type TransferCompassPlace } from '~~/src/scenario'
+import { along, columnLabels, compassRings, compassScale, quietBearing, spreadBearings, type TransferCompassPlace } from '~~/src/scenario'
+import { useDrawingText } from '~/composables/useDrawingText'
 
 const props = defineProps<{
   places: TransferCompassPlace[]
@@ -117,11 +128,14 @@ const HEIGHT = 300
 // spread out.
 const INNER = 18
 const OUTER = 118
-// Places at least this many degrees apart, and labels this far apart.
+// Places at least this many degrees apart.
 const MIN_SPREAD = 8
-const LABEL_GAP = 17
+// Labels line up this far either side of the middle, clear of the outer
+// ring, each at most as wide as the room left before the frame's edge.
+const LABEL_X = OUTER + 12
+const labelRoom = `${((WIDTH / 2 - LABEL_X - 8) / WIDTH) * 100}%`
 const MARKERS = [{ id: 'on', color: TRANSFER_PICKED_COLOR }, { id: 'off', color: TRANSFER_UNPICKED_COLOR }]
-// The compass points, on an ellipse, as the frame is wider than tall.
+// The compass points, clockwise from north.
 const POINTS = [
   { short: 'N', name: 'north' },
   { short: 'NE', name: 'northeast' },
@@ -131,12 +145,26 @@ const POINTS = [
   { short: 'SW', name: 'southwest' },
   { short: 'W', name: 'west' },
   { short: 'NW', name: 'northwest' },
-].map((point, i) => {
-  const angle = (i * 45 * Math.PI) / 180
-  return { ...point, x: Math.sin(angle) * (OUTER + 26), y: -Math.cos(angle) * (HEIGHT / 2 - 12) }
-})
+]
+// E and W lie this far either side of the middle.
+const SIDE = OUTER + 26
 
 const hoveredSector = ref<number>()
+const frame = ref<HTMLElement>()
+const text = useDrawingText(frame, WIDTH)
+
+// Each compass point where its ray from the middle meets a box around the
+// dial: N, NE and NW in a row along the top, and S, SE and SW along the
+// bottom, clear of the labels and their leaders; E and W in the middle of
+// the label columns.
+const points = computed(() => {
+  const top = HEIGHT / 2 - text.value.row / 2
+  return POINTS.map((point, i) => {
+    const [ux, uy] = along(i * 45)
+    const t = Math.min(SIDE / Math.abs(ux), top / Math.abs(uy))
+    return { ...point, x: ux * t, y: uy * t }
+  })
+})
 
 const maxKm = computed(() => Math.max(0.1, ...props.places.map(p => p.km)))
 function radius (km: number): number {
@@ -151,43 +179,55 @@ const rings = computed(() => {
   })
 })
 
+const excluded = computed(() => new Set(props.excluded))
+
 const layout = computed(() => {
-  const excluded = new Set(props.excluded)
   const maxCount = Math.max(1, ...props.places.map(p => p.count))
   const angles = spreadBearings(props.places.map(p => p.bearing), MIN_SPREAD)
-  const placed = props.places.map((p, i) => {
+  return props.places.map((p, i) => {
     const angle = angles[i]!
     const [ux, uy] = along(angle)
     const r = radius(p.km)
-    const x = ux * r
-    const y = uy * r
-    const out = p.keys.filter(k => excluded.has(k)).length
-    const state = out === 0 ? 'all' as const : out === p.keys.length ? 'none' as const : 'some' as const
+    const state = stateOf(p.keys)
     return {
       ...p,
-      x,
-      y,
+      x: ux * r,
+      y: uy * r,
       r,
       state,
       dot: 3 + 4 * Math.sqrt(p.count / maxCount),
       angle,
-      text: placeText(p, state),
-      labelX: x + (x < 0 ? -8 : 8),
-      labelY: y,
+      text: placeText(p, angle, state),
     }
   })
-  spreadLabels(placed, -HEIGHT / 2 + LABEL_GAP, HEIGHT / 2 - LABEL_GAP / 2, LABEL_GAP)
-  return placed
 })
 
-// Each compass point with the destinations of its places, toggled together.
-const sectors = computed(() => POINTS.map((point, i) => {
-  const places = layout.value.filter(p => sectorOf(p.bearing) === i)
-  const all = places.every(p => p.state === 'all')
+// The labels, in a column either side of the dial, each as level with its
+// place as the others allow: between the rows of compass points along the
+// top and bottom, and around the one (W or E) in the column's middle. Where
+// a column runs out of room, the places with the fewest trips go unlabeled.
+const labels = computed(() => {
+  const { row } = text.value
+  return [true, false].flatMap((left) => {
+    const side = layout.value.filter(p => (p.x < 0) === left)
+    const ys = columnLabels(side.map(p => ({ y: p.y, weight: p.count })), -HEIGHT / 2 + row * 1.5, HEIGHT / 2 - row * 1.5, row, [-row, row])
+    return side.flatMap((p, i) => {
+      const labelY = ys[i]
+      return labelY === undefined ? [] : [{ ...p, left, labelY }]
+    })
+  })
+})
+
+// Each compass point with the destinations of the places drawn in its
+// wedge, toggled together.
+const sectors = computed(() => points.value.map((point, i) => {
+  const places = layout.value.filter(p => sectorOf(p.angle) === i)
+  const keys = places.flatMap(p => p.keys)
+  const state = stateOf(keys)
   const text = places.length === 0
     ? `No trips ${props.side} the ${point.name}`
-    : `${all ? 'Leave out' : 'Include'} trips ${props.side} the ${point.name}: ${places.map(p => p.name).join(', ')}`
-  return { ...point, index: i, keys: places.flatMap(p => p.keys), all, text }
+    : `${state === 'none' ? 'Include' : 'Leave out'} trips ${props.side} the ${point.name}: ${places.map(p => p.name).join(', ')}`
+  return { ...point, index: i, keys, state, text }
 }))
 
 // A line from the stops to a place, arrowed toward the stops for arriving
@@ -200,14 +240,24 @@ function arrowEnds (p: { angle: number, r: number, dot: number }) {
   return { x1: ux * a, y1: uy * a, x2: ux * b, y2: uy * b }
 }
 
-function placeText (p: TransferCompassPlace, state: 'all' | 'some' | 'none'): string {
-  const trips = `${p.count.toLocaleString()} ${props.side === 'from' ? 'arriving' : 'departing'} ${p.count === 1 ? 'trip' : 'trips'}`
-  const included = { all: 'included', some: 'some included', none: 'excluded' }[state]
-  return `${p.name}, ${POINTS[sectorOf(p.bearing)]!.name} of the stops: ${trips}, ${included}. Click to ${state === 'all' ? 'exclude' : 'include'} them.`
+// Whether all, some or none of some destinations are included.
+function stateOf (keys: string[]): 'all' | 'some' | 'none' {
+  const out = keys.filter(k => excluded.value.has(k)).length
+  return out === 0 ? 'all' : out === keys.length ? 'none' : 'some'
 }
 
-function sectorOf (bearing: number): number {
-  return Math.round(bearing / 45) % 8
+// A place's description, naming the compass point it's drawn toward: the
+// point that toggles the place.
+function placeText (p: TransferCompassPlace, angle: number, state: 'all' | 'some' | 'none'): string {
+  const trips = `${p.count.toLocaleString()} ${props.side === 'from' ? 'arriving' : 'departing'} ${p.count === 1 ? 'trip' : 'trips'}`
+  const included = { all: 'included', some: 'some included', none: 'excluded' }[state]
+  return `${p.name}, ${POINTS[sectorOf(angle)]!.name} of the stops: ${trips}, ${included}. Click to ${state === 'none' ? 'include' : 'exclude'} them.`
+}
+
+// The compass point nearest an angle in degrees, which may lie past 360 or
+// below 0 once spread.
+function sectorOf (angle: number): number {
+  return Math.round((((angle % 360) + 360) % 360) / 45) % 8
 }
 
 // A wedge of the compass, highlighted as its point is hovered.
@@ -218,9 +268,10 @@ function sectorPath (i: number): string {
   return `M0,0 L${(ax * r).toFixed(1)},${(ay * r).toFixed(1)} A${r},${r} 0 0 1 ${(bx * r).toFixed(1)},${(by * r).toFixed(1)} Z`
 }
 
-// Leaves the destinations out where all are included, else includes them.
-function toggle (keys: string[], allIncluded: boolean) {
-  emit('toggle', keys, !allIncluded)
+// Includes the destinations where none are, else leaves them all out, as a
+// checkbox in the list below does.
+function toggle (keys: string[], state: 'all' | 'some' | 'none') {
+  emit('toggle', keys, state === 'none')
 }
 
 // A point in SVG coordinates as a CSS position over the frame.
@@ -289,7 +340,7 @@ function at (x: number, y: number) {
 }
 
 // Compass points and place labels over the drawing: a point centered on its
-// spot, and a label beside its place, within the room between the outer ring
+// spot, and a label in its column, within the room between the outer ring
 // and the frame's edge.
 .cal-transfer-compass-point,
 .cal-transfer-compass-label {
@@ -302,10 +353,8 @@ function at (x: number, y: number) {
   transform: translate(-50%, -50%);
 }
 
-// On the page's background, so a name stays readable over a compass point.
 .cal-transfer-compass-label {
-  max-width: 23%;
-  background: var(--bulma-scheme-main);
+  max-width: v-bind(labelRoom);
   transform: translateY(-50%);
 
   button {

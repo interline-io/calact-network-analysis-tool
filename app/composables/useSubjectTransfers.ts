@@ -403,10 +403,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   // the middle of the stops.
   const compass = computed(() => {
     const center = centerOf(stopPoints.value.map((p): [number, number] => [p.lon, p.lat]))
-    return {
-      from: center ? transferCompassPlaces(routeChoices.value.from, 'from', center) : [],
-      to: center ? transferCompassPlaces(routeChoices.value.to, 'to', center) : [],
-    }
+    return center ? transferCompassPlaces(routeChoices.value, center) : { from: [], to: [] }
   })
   // The connections between those places, for the Compass view.
   const rose = computed(() => transferRose(summary.value, compass.value, tripInfo.value))

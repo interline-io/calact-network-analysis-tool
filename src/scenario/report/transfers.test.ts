@@ -441,6 +441,13 @@ describe('transferTripChoices', () => {
     expect(loop!.directions[0]!.label).toBe('Toward Downtown Loop')
   })
 
+  it('places each end of a run by trips that start or end there, though both ends share a name', () => {
+    // A shuttle between two Stockton stations, as in the Amtrak feed.
+    const shuttle = { ...trip(10, 0, 'Stockton'), origin: 'Stockton', terminus: 'Stockton', originPoint: [-121.279, 37.957] as [number, number], terminusPoint: [-121.2856, 37.9455] as [number, number] }
+    const [route] = transferTripChoices([shuttle], routes)
+    expect(route!.directions[0]!.destinations[0]!.run).toMatchObject({ originPoint: [-121.279, 37.957], terminusPoint: [-121.2856, 37.9455] })
+  })
+
   it('names a direction by where its trips end where their signs do not tell the directions apart', () => {
     const ending = (directionId: number, terminus: string) => ({ ...trip(10, directionId, 'Loop'), terminus })
     const [route] = transferTripChoices([ending(0, 'North TC'), ending(0, 'North TC'), ending(1, 'South TC')], routes)
@@ -563,6 +570,11 @@ describe('focusFilters', () => {
   it('leaves out every arriving destination outside the focus', () => {
     expect(focusFilters({ from: [transferTripKey(a)] }, choices, none))
       .toEqual({ excludedFrom: [transferTripKey(b), transferTripKey(c)], excludedTo: [] })
+  })
+
+  it('narrows departing ones alone where the focus names no arriving ones', () => {
+    expect(focusFilters({ to: [transferTripKey(y)] }, choices, none))
+      .toEqual({ excludedFrom: [], excludedTo: [transferTripKey(x)] })
   })
 
   it('narrows departing ones where named, within the filters already set', () => {
