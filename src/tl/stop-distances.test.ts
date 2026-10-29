@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
+import { gql } from 'graphql-tag'
 import { apiFetch, BasicGraphQLClient } from '../core'
-import { parseStopDistance, stopDistanceQuery, stopDistanceVariables, stopPairKey, stopPairs, type StopDistanceResponse, type StopPoint } from './stop-distances'
+import { parseStopDistance, stopDistanceQuery, stopDistanceVariables, stopPairKey, stopPairs, stopsNearQuery, stopsNearVariables, type StopDistanceResponse, type StopPoint, type StopsNearResponse } from './stop-distances'
 
 describe('stopPairs', () => {
   it('pairs each two distinct stops once, keyed either way round', () => {
@@ -10,13 +11,14 @@ describe('stopPairs', () => {
   })
 })
 
-// Against the fixture transitland-server (docker/docker-compose.services.yaml),
-// which routes mode LINE as production does.
+// Against the fixture transitland-server (docker/docker-compose.services.yaml).
+const client = new BasicGraphQLClient(
+  (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
+  apiFetch(''),
+)
+
+// The fixture routes mode LINE as production does.
 describe('stopDistanceQuery (integration)', () => {
-  const client = new BasicGraphQLClient(
-    (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
-    apiFetch(''),
-  )
   const meters = async (a: StopPoint, b: StopPoint) => {
     const result = await client.query<StopDistanceResponse>(stopDistanceQuery, stopDistanceVariables(a, b, 'LINE'))
     return parseStopDistance(result.data)
@@ -32,5 +34,29 @@ describe('stopDistanceQuery (integration)', () => {
     expect(near).toBeGreaterThan(200)
     expect(near).toBeLessThan(240)
     expect(await meters(a, c)).toBeGreaterThan(900)
+  })
+})
+
+describe('stopsNearQuery (integration)', () => {
+  // A TriMet stop's id, by its GTFS stop_id.
+  const idOf = async (stopId: string) => {
+    const result = await client.query<{ stops: { id: number }[] }>(gql`
+      query ($stopId: String) { stops(where: { feed_onestop_id: "f-c20-trimet", stop_id: $stopId }) { id } }
+    `, { stopId })
+    return result.data!.stops[0]!.id
+  }
+  const UNION_STATION: [number, number] = [-122.6767, 45.5289]
+
+  it('keeps the stops within a radius in meters of a point', async () => {
+    // NW 6th & Flanders lies about 350 m from Union Station, and SW 5th &
+    // Washington about 960 m.
+    const near = await idOf('9300')
+    const far = await idOf('7642')
+    const within = async (meters: number) => {
+      const result = await client.query<StopsNearResponse>(stopsNearQuery, stopsNearVariables([near, far], UNION_STATION, meters))
+      return (result.data?.stops ?? []).map(s => s.id)
+    }
+    expect(await within(800)).toEqual([near])
+    expect(await within(1200)).toHaveLength(2)
   })
 })

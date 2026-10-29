@@ -115,6 +115,8 @@ Avoid client-side geometry operations (union, buffer, intersection, difference, 
 
 **Exception:** computing a bounding box around features client-side (min/max of coordinates, e.g. `@turf/bbox` or hand-rolled) is fine — it's arithmetic, not a geometric calculation, and the result only needs to be approximate (e.g. for padding a query area or framing a map view). The ban is on operations whose correctness depends on agreeing with PostGIS.
 
+**Exception:** a haversine distance between two points is fine client-side. Don't present a bounding box as a way around this rule where the question is a distance. When the Transitland API can answer it directly, as a stops search with `location.near` does, prefer the API.
+
 ## GraphQL documents: static literals only
 
 Every GraphQL query is a static `gql` literal, with its values passed as variables. Never build a document at runtime: no generated aliases, repeated fields, field lists, fragments or variable declarations, and no `gql(…)` called on an assembled string, even when only indices vary. This is absolutely forbidden. When one request can't express what a feature needs, the API lacks a capability: add it in transitland-lib, with a tlserver pin bump, or send one static request per item.

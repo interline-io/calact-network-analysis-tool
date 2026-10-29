@@ -33,6 +33,7 @@
       <span v-if="routes.length > 0" class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-route" />Route at a picked stop</span>
       <span v-if="routes.length > 0" class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-route cal-transfer-stops-map-key-route-other" />Other route</span>
       <span v-if="extent.length > 0" class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-extent" />Query area</span>
+      <span v-if="stops.some(s => !s.reachable)" class="cal-transfer-stops-map-key"><cat-icon size="small" icon="circle-outline" class="cal-transfer-stops-map-key-far" />Over {{ TRANSFER_STOP_REACH_METERS }} m away</span>
       <span>{{ lassoOn ? 'Drag around stops to add them.' : 'Click a stop to add or remove it.' }}</span>
     </p>
   </div>
@@ -41,7 +42,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as maplibre from 'maplibre-gl'
-import { TRANSFER_PICKED_COLOR, TRANSFER_UNPICKED_COLOR, escapeHtml, isPolygonal, mergePolygons, polygonBbox } from '~~/src/core'
+import { TRANSFER_PICKED_COLOR, TRANSFER_STOP_REACH_METERS, TRANSFER_UNPICKED_COLOR, escapeHtml, isPolygonal, mergePolygons, polygonBbox } from '~~/src/core'
 import { basemapStyle } from '~/utils/basemap'
 import { useRuntimeConfig } from '#imports'
 
@@ -53,6 +54,9 @@ export interface TransferMapStop {
   operator: string
   routes: string
   platform: boolean
+  // Within reach of the subject, so it can be picked; one out of reach can
+  // only be unpicked.
+  reachable: boolean
   // The stop's routes.
   routeIds: number[]
   lon: number
@@ -110,7 +114,7 @@ function stopFeatures (): GeoJSON.FeatureCollection {
     features: props.stops.map(s => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
-      properties: { id: s.id, name: s.name, operator: s.operator, routes: s.routes, platform: s.platform },
+      properties: { id: s.id, name: s.name, operator: s.operator, routes: s.routes, platform: s.platform, reachable: s.reachable },
     })),
   }
 }
@@ -196,8 +200,18 @@ function fit () {
   map.fitBounds(bounds, { padding: 48, maxZoom: 19, duration: 0 })
 }
 
+const reachable = computed(() => new Set(props.stops.filter(s => s.reachable).map(s => s.id)))
+
+// Whether a click can pick or unpick a stop: any picked stop, and an unpicked
+// one within reach.
+function canToggle (id: number): boolean {
+  return selected.value.includes(id) || reachable.value.has(id)
+}
+
 function toggle (id: number) {
-  selected.value = selected.value.includes(id) ? selected.value.filter(x => x !== id) : [...selected.value, id]
+  if (canToggle(id)) {
+    selected.value = selected.value.includes(id) ? selected.value.filter(x => x !== id) : [...selected.value, id]
+  }
 }
 
 // The map's view, west, south, east, north, for the list.
@@ -213,6 +227,8 @@ const MARKER_SIZE = 20
 // a couple of kilometers across, past any walk between stops.
 const MAX_ZOOM = 21
 const MIN_ZOOM = 14
+// Stops out of reach are drawn this faint.
+const FAR_OPACITY = 0.35
 // A marker: a circle for a stop, a rounded square for a platform; filled
 // when picked, white otherwise.
 function marker (platform: boolean, picked: boolean): ImageData {
@@ -237,12 +253,14 @@ function marker (platform: boolean, picked: boolean): ImageData {
   return ctx.getImageData(0, 0, size, size)
 }
 
-// A stop as text: its name, a platform's note, operator, and routes.
+// A stop as text: its name, a platform's note, operator, and routes, and why
+// one out of reach can't be added.
 function stopHtml (p: Record<string, any>): string {
   return [
     `<strong>${escapeHtml(String(p.name ?? ''))}</strong>${p.platform ? ' (platform)' : ''}`,
     p.operator ? escapeHtml(String(p.operator)) : '',
     p.routes ? `<span class="has-text-grey">${escapeHtml(String(p.routes))}</span>` : '',
+    p.reachable ? '' : `<em>Over ${TRANSFER_STOP_REACH_METERS} m away, too far to add</em>`,
   ].filter(Boolean).join('<br>')
 }
 
@@ -283,6 +301,7 @@ function chooserContent (features: maplibre.MapGeoJSONFeature[]): HTMLElement {
     box.className = 'mt-1'
     box.type = 'checkbox'
     box.checked = picked.has(id)
+    box.disabled = !canToggle(id)
     box.addEventListener('change', () => toggle(id))
     const text = document.createElement('span')
     text.innerHTML = stopHtml(f.properties ?? {})
@@ -384,7 +403,7 @@ function initMap () {
       },
     })
     // Stops as circles and platforms as squares, picked ones filled, in a
-    // layer of their own drawn on top.
+    // layer of their own drawn on top; those out of reach, faint.
     for (const picked of [false, true]) {
       m.addLayer({
         id: picked ? 'stops-picked' : 'stops',
@@ -397,6 +416,9 @@ function initMap () {
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
         },
+        paint: {
+          'icon-opacity': ['case', ['get', 'reachable'], 1, FAR_OPACITY],
+        },
       })
     }
     // Hovering names a stop, as names drawn on the map would crowd a
@@ -407,7 +429,7 @@ function initMap () {
     m.on('mousemove', (e) => {
       const features = stopsAt(m, e.point)
       const id = features[0]?.properties?.id as number | undefined
-      m.getCanvas().style.cursor = id === undefined ? '' : 'pointer'
+      m.getCanvas().style.cursor = id !== undefined && (features.length > 1 || canToggle(id)) ? 'pointer' : ''
       if (id !== hovered) {
         hovered = id
         emit('hover', id)
@@ -491,8 +513,8 @@ function moveLasso (e: PointerEvent) {
     lassoPoints.value.push(point(e))
   }
 }
-// Adds the stops inside the lasso, by where the map draws them, to those
-// picked, and turns the lasso off so a drag pans the map again.
+// Adds the stops inside the lasso within reach, by where the map draws them,
+// to those picked, and turns the lasso off so a drag pans the map again.
 function endLasso () {
   if (!drawing) {
     return
@@ -506,7 +528,7 @@ function endLasso () {
   }
   const inside = props.stops.filter((s) => {
     const { x, y } = map!.project([s.lon, s.lat])
-    return inRing(x, y, ring)
+    return s.reachable && inRing(x, y, ring)
   }).map(s => s.id)
   selected.value = [...new Set([...selected.value, ...inside])]
 }
@@ -616,5 +638,9 @@ onBeforeUnmount(() => {
 .cal-transfer-stops-map-key-extent {
   width: 1rem;
   border-top: 2px dashed v-bind(TRANSFER_UNPICKED_COLOR);
+}
+
+.cal-transfer-stops-map-key-far {
+  opacity: v-bind(FAR_OPACITY);
 }
 </style>

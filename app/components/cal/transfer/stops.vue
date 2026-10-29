@@ -20,7 +20,7 @@
             <strong>{{ stops.length }} {{ stops.length === 1 ? 'stop' : 'stops' }} picked</strong>
             <!-- Both always shown, at the row's end, so neither takes the
                  other's place under the pointer. -->
-            <button type="button" class="cal-link-button ml-auto" :disabled="!listed.some(s => !picked.has(s.id))" @click="selectListed">
+            <button type="button" class="cal-link-button ml-auto" :disabled="!listed.some(s => s.reachable && !picked.has(s.id))" @click="selectListed">
               Select all
             </button>
             <button type="button" class="cal-link-button" :disabled="stops.length === 0" @click="unselectAll">
@@ -32,14 +32,16 @@
               {{ group.operator || 'Unknown operator' }}
             </div>
             <ul>
+              <!-- A stop out of reach is grayed, and can only be unpicked. -->
               <li
                 v-for="s of group.stops"
                 :key="s.id"
-                :class="{ 'cal-transfer-stops-hovered': mapHover === s.id }"
+                :class="{ 'cal-transfer-stops-hovered': mapHover === s.id, 'has-text-grey': !s.reachable }"
+                :title="s.reachable ? undefined : `Over ${TRANSFER_STOP_REACH_METERS} m away, too far to add`"
                 @mouseenter="rowHover = s.id"
                 @mouseleave="rowHover = undefined"
               >
-                <cat-checkbox class="is-flex" :model-value="picked.has(s.id)" @update:model-value="setPicked(s.id, !!$event)">
+                <cat-checkbox class="is-flex" :model-value="picked.has(s.id)" :disabled="!s.reachable && !picked.has(s.id)" @update:model-value="setPicked(s.id, !!$event)">
                   <!-- The map's shapes: a circle for a stop, a square for a
                        platform. -->
                   <cat-icon size="small" :icon="s.platform ? 'square-rounded-outline' : 'circle-outline'" v-bind="{ title: s.platform ? 'Platform in a station' : 'Stop' }" />
@@ -76,7 +78,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { TransferMapRoute, TransferMapStop } from './stops-map.vue'
-import { KM_PER_DEGREE, TRANSFER_PICKED_COLOR, compareNamesBlankLast, groupBy } from '~~/src/core'
+import { KM_PER_DEGREE, TRANSFER_PICKED_COLOR, TRANSFER_STOP_REACH_METERS, compareNamesBlankLast, groupBy } from '~~/src/core'
 
 const props = defineProps<{
   mapStops: TransferMapStop[]
@@ -112,9 +114,8 @@ const listed = computed(() => props.mapStops.filter((s) => {
   return !!v && s.lon >= v[0] && s.lat >= v[1] && s.lon <= v[2] && s.lat <= v[3]
 }))
 
-// Stops within a short walk of one picked, not picked themselves, by name:
-// those in a box around a picked stop, padded by the walk. A box is close
-// enough for a suggestion and keeps distance measuring off the client.
+// Stops within reach and a short walk of one picked, not picked themselves,
+// by name: those in a box around a picked stop, padded by the walk.
 const NEARBY_KM = 0.15
 const nearby = computed(() => {
   const padLat = NEARBY_KM / KM_PER_DEGREE
@@ -122,7 +123,7 @@ const nearby = computed(() => {
     .filter(s => picked.value.has(s.id))
     .map(c => ({ c, padLon: padLat / Math.cos((c.lat * Math.PI) / 180) }))
   return props.mapStops
-    .filter(s => !picked.value.has(s.id) && boxes.some(({ c, padLon }) => Math.abs(s.lat - c.lat) <= padLat && Math.abs(s.lon - c.lon) <= padLon))
+    .filter(s => s.reachable && !picked.value.has(s.id) && boxes.some(({ c, padLon }) => Math.abs(s.lat - c.lat) <= padLat && Math.abs(s.lon - c.lon) <= padLon))
     .sort((a, b) => a.name.localeCompare(b.name))
 })
 
@@ -131,9 +132,9 @@ const groups = computed(() => [...groupBy(listed.value, s => s.operator)]
   .sort(([a], [b]) => compareNamesBlankLast(a, b))
   .map(([operator, list]) => ({ operator, stops: list.sort((a, b) => a.name.localeCompare(b.name)) })))
 
-// Picks every listed stop.
+// Picks every listed stop within reach.
 function selectListed () {
-  stops.value = [...new Set([...stops.value, ...listed.value.map(s => s.id)])]
+  stops.value = [...new Set([...stops.value, ...listed.value.filter(s => s.reachable).map(s => s.id)])]
 }
 
 function setPicked (id: number, on: boolean) {

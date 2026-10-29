@@ -193,6 +193,9 @@ export const TRANSFER_GRADE_BREAKPOINTS = [-5 * 60, 0, 6 * 60, 10 * 60, 20 * 60]
 // The default walking time per meter between two different stops: 1 second,
 // about 3.6 km/h (2.2 mph).
 export const TRANSFER_WALK_SECONDS_PER_METER = 1
+// How far a stop may lie from the middle of the subject's own stops, in
+// meters, and still be picked for the Transfer Analyst.
+export const TRANSFER_STOP_REACH_METERS = 800
 
 export const DEFAULT_TIME_WINDOW = {
   start: '06:00:00',
