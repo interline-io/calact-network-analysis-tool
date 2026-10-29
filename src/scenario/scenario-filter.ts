@@ -99,6 +99,7 @@ import type {
   FlexAreaFeature,
   RouteDepartureIndex,
   BufferGeographyIntersection,
+  VehicleTrack,
 } from '~~/src/tl'
 import { routesById } from '~~/src/tl'
 import { getFlexAgencyNames } from '~~/src/tl/flex'
@@ -632,6 +633,8 @@ export interface ScenarioFilterResult {
   // cross-agency transfer-hub clusters, after the client-side max-transfer
   // -time prune. Populated only when the scenario ran with clustering enabled.
   stopClusters?: StopCluster[]
+  // Passed through from ScenarioData for the vehicle playback.
+  vehicleTracks?: VehicleTrack[]
 }
 
 export function applyScenarioResultFilter (
@@ -858,6 +861,7 @@ export function applyScenarioResultFilter (
     agencyBufferGeographies: data.agencyBufferGeographies,
     aggregationBufferGeographies: data.aggregationBufferGeographies,
     stopClusters,
+    vehicleTracks: data.vehicleTracks,
   }
   return result
 }

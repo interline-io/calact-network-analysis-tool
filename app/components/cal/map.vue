@@ -51,6 +51,7 @@
       :cluster-circle-features="clusterCircleFeatures"
       :cluster-line-features="clusterLineFeatures"
       :cluster-markers="clusterMarkers"
+      :vehicle-features="vehicleFeatures"
       :markers="bboxMarkers"
       :popup-features="popupFeatures"
       :loading-stage="props.loadingStage"
@@ -75,7 +76,7 @@
 <script setup lang="ts">
 import { ref, computed, toRaw, watch, toRef } from 'vue'
 import { useToggle } from '@vueuse/core'
-import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
+import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById, vehiclePosition, type VehicleTrack } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo, QueryPolygon } from '~~/src/core'
 import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
 import { buildStyleData, clusterDisplayName, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
@@ -119,9 +120,11 @@ const props = defineProps<{
   sidebarPanelOpen?: boolean
   // Increment to clear the selection, as when the trip panel is closed.
   clearSelectionKey?: number
+  // The vehicle playback's time in seconds from midnight.
+  vehicleTime?: number
 }>()
 
-const { dataDisplayMode, hideUnmarked } = useScenarioDisplay()
+const { dataDisplayMode, hideUnmarked, showVehicles } = useScenarioDisplay()
 const { bbox, geographyIds, geomSource, geomLayer, fixedRouteEnabled } = useScenarioInputs()
 const { flexServicesEnabled, flexColorBy } = useScenarioFilters()
 
@@ -733,6 +736,57 @@ const displayFeatures = computed((): Feature[] => {
   }
 
   return forDisplay
+})
+
+// The playback's tracks. A function rather than a computed, so each computed
+// below depends on the filter result itself: the receiver fills one array in
+// place, and a computed returning that same array would never signal a change.
+function vehicleTracks (): VehicleTrack[] {
+  return showVehicles.value ? props.scenarioFilterResult?.vehicleTracks || [] : []
+}
+
+// Each marked route's color on the map, which its vehicles share. Routes the
+// filters leave out run no vehicles.
+const vehicleRouteColors = computed((): Map<number, string> => {
+  const colors = new Map<number, string>()
+  if (vehicleTracks().length === 0) {
+    return colors
+  }
+  const styleRules = styleData.value || []
+  for (const route of props.scenarioFilterResult?.routes || []) {
+    if (route.marked) {
+      colors.set(route.id, styleRules.find(rule => rule.match(route))?.color || '#aaa')
+    }
+  }
+  return colors
+})
+
+// Every vehicle on a marked route, where it is at the playback time.
+const vehicleFeatures = computed((): Feature[] => {
+  const time = props.vehicleTime
+  if (time == null || fixedRouteEnabled.value === false) {
+    return []
+  }
+  const colors = vehicleRouteColors.value
+  const out: Feature[] = []
+  for (const track of vehicleTracks()) {
+    const color = colors.get(track.routeId)
+    if (!color) {
+      continue
+    }
+    const position = vehiclePosition(track, time)
+    if (!position) {
+      continue
+    }
+    out.push({
+      type: 'Feature',
+      // A trip's runs differ in when they start.
+      id: `${track.tripId}:${track.times[0]}`,
+      geometry: { type: 'Point', coordinates: position },
+      properties: { 'marker-color': color },
+    })
+  }
+  return out
 })
 
 // Features for export: the marked features from the layers currently

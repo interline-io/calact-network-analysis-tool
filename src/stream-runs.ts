@@ -19,6 +19,7 @@ import {
   runStopCensusPhase,
   runStopClustersPhase,
   runStopsPhase,
+  runVehicleTracksPhase,
   streamScenario,
   type BufferFetchConfig,
   type CensusValuesPhaseConfig,
@@ -33,6 +34,7 @@ import {
   type StopCensusPhaseConfig,
   type StopClusterFetchConfig,
   type StopsPhaseConfig,
+  type VehicleTracksPhaseConfig,
 } from '~~/src/scenario'
 import {
   runAnalysis,
@@ -108,6 +110,8 @@ export const streamRuns = {
     runStopCensusPhase(config, client, emit, { onError })),
   'scenario/stops': phase('stops', 'Starting stops phase', (config: StopsPhaseConfig, client, emit, onError) =>
     runStopsPhase(config, client, emit, { onError })),
+  'scenario/vehicle-tracks': phase('vehicle-tracks', 'Starting vehicle tracks phase', (config: VehicleTracksPhaseConfig, client, emit, onError) =>
+    runVehicleTracksPhase(config, client, emit, { onError })),
 } satisfies Record<string, StreamRun>
 
 // A BFF endpoint's path under /api.

@@ -22,6 +22,7 @@ import type {
   BufferGeographyIntersection,
   RouteFareSummary,
   FareCategory,
+  VehicleTrack,
 } from '~~/src/tl'
 import { StopDepartureCache, FlexDepartureCache } from '~~/src/tl'
 import { runProgressStream, type ProgressEmit } from './progress-stream'
@@ -118,6 +119,8 @@ const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boole
   'census-values': config => config.includeCensus !== false
     && !!config.tableDatasetName
     && !!config.aggregateLayer,
+  // Fetched on demand by the vehicle playback, never as part of a run.
+  'vehicle-tracks': () => false,
   'wsdot-levels': () => false,
   'wsdot-geographies': () => false,
 }
@@ -191,6 +194,8 @@ export interface ScenarioData {
   // Standard-fare summary per route id, from the fares phase. A route with no
   // entry has not loaded yet, or its feed version's fare query failed.
   routeFares?: Map<number, RouteFareSummary>
+  // Every vehicle run on the playback's day, from the vehicle-tracks phase.
+  vehicleTracks?: VehicleTrack[]
 }
 
 // Callback interface for scenario stream receivers.
@@ -242,6 +247,7 @@ export interface ScenarioProgress {
     stopClusters?: StopCluster[]
     // Route id -> standard-fare summary, one batch per feed version.
     routeFares?: [number, RouteFareSummary][]
+    vehicleTracks?: VehicleTrack[]
   }
   config?: any
 }
@@ -594,6 +600,7 @@ export class ScenarioDataReceiver {
       aggregationBufferGeographies: [],
       stopClusters: [],
       routeFares: new Map<number, RouteFareSummary>(),
+      vehicleTracks: [],
     }
   }
 
@@ -664,6 +671,9 @@ export class ScenarioDataReceiver {
       if (p.stopClusters) {
         this.accumulatedData.stopClusters = p.stopClusters
       }
+      if (p.vehicleTracks && this.accumulatedData.vehicleTracks) {
+        this.accumulatedData.vehicleTracks.push(...p.vehicleTracks)
+      }
     }
 
     return this.callbacks.onProgress?.(progress)
@@ -703,6 +713,11 @@ export class ScenarioDataReceiver {
   // previous layer's entries are wrong rather than merely stale.
   clearStopCensusGeographies (): void {
     this.accumulatedData.stopCensusGeographies?.clear()
+  }
+
+  // Reset when the playback is turned off, or its fetch fails partway.
+  clearVehicleTracks (): void {
+    this.accumulatedData.vehicleTracks = []
   }
 
   // A shallow copy of the accumulated data so far.

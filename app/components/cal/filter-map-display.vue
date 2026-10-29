@@ -130,6 +130,13 @@
           Show filtered routes/stops
         </cat-checkbox>
       </li>
+      <li>
+        <cat-checkbox v-model="showVehicles">
+          Show vehicles <cat-tooltip text="Play back a day of service: each vehicle on the routes shown moves by its schedule, in a straight line from stop to stop. Turning this on loads every trip these routes run on the query's start date.">
+            <i class="mdi mdi-information-outline" />
+          </cat-tooltip>
+        </cat-checkbox>
+      </li>
     </ul>
   </aside>
 </template>
@@ -161,6 +168,7 @@ const {
   hideUnmarked,
   baseMap,
   showBbox,
+  showVehicles,
 } = useScenarioDisplay()
 const { stopBufferRadius } = useScenarioInputs()
 

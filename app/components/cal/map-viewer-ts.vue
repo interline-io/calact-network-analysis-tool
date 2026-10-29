@@ -45,6 +45,8 @@ const clusterCircleFeatures = defineModel<Feature[]>('clusterCircleFeatures', { 
 const clusterLineFeatures = defineModel<Feature[]>('clusterLineFeatures', { default: () => [] })
 // multi-colored "beach ball" markers, one per cluster, drawn at its anchor stop.
 const clusterMarkers = defineModel<{ id: string, point: Point, colors: string[] }[]>('clusterMarkers', { default: () => [] })
+// vehicle playback positions, redrawn every animation frame while it plays.
+const vehicleFeatures = defineModel<Feature[]>('vehicleFeatures', { default: () => [] })
 const markers = defineModel<MarkerFeature[]>('markers', { default: () => [] })
 const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: () => [] })
 const mapClass = defineModel<string>('mapClass', { default: 'short' })
@@ -138,6 +140,10 @@ watch(() => clusterCircleFeatures.value, (v) => {
 
 watch(() => clusterLineFeatures.value, (v) => {
   updateClusterLines(v)
+})
+
+watch(() => vehicleFeatures.value, (v) => {
+  updateVehicleFeatures(v)
 })
 
 watch(() => clusterMarkers.value, (v) => {
@@ -250,6 +256,7 @@ function initMap () {
     updateClusterFeatures(clusterFeatures.value)
     updateClusterCircle(clusterCircleFeatures.value)
     updateClusterLines(clusterLineFeatures.value)
+    updateVehicleFeatures(vehicleFeatures.value)
     drawClusterMarkers(clusterMarkers.value)
     map?.on('mousemove', mapMouseMove)
     map?.on('click', mapClick)
@@ -471,6 +478,10 @@ function createSources () {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
+  map?.addSource('vehicles', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
 }
 
 function createLayers () {
@@ -688,6 +699,19 @@ function createLayers () {
     }
   })
 
+  // Vehicles draw above the stops and below the highlights.
+  map?.addLayer({
+    id: 'vehicles',
+    type: 'circle',
+    source: 'vehicles',
+    paint: {
+      'circle-color': ['coalesce', ['get', 'marker-color'], '#888888'],
+      'circle-radius': 5,
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 1.5,
+    }
+  })
+
   // Highlight layers for selected features (rendered on top)
   map?.addLayer({
     id: 'highlight-polygon',
@@ -836,6 +860,10 @@ function updateClusterCircle (features: Feature[]) {
 
 function updateClusterLines (features: Feature[]) {
   setSourceData('clusterLines', features)
+}
+
+function updateVehicleFeatures (features: Feature[]) {
+  setSourceData('vehicles', features)
 }
 
 function fitFeatures (features: Feature[]) {

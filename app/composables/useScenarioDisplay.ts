@@ -26,6 +26,7 @@ interface ScenarioDisplay {
   baseMap: WritableComputedRef<string>
   unitSystem: WritableComputedRef<UnitSystem>
   showBbox: WritableComputedRef<boolean>
+  showVehicles: WritableComputedRef<boolean>
   isAllDayMode: ComputedRef<boolean>
 }
 
@@ -106,6 +107,13 @@ export function useScenarioDisplay (): ScenarioDisplay {
     set: (v) => { setQuery({ showBbox: v ? undefined : 'false' }) }
   })
 
+  // The map's vehicle playback. Off by default, since turning the playback on
+  // fetches a day of schedules.
+  const showVehicles = computed<boolean>({
+    get: () => query.value.showVehicles?.toString() === 'true',
+    set: (v) => { setQuery({ showVehicles: v ? 'true' : undefined }) }
+  })
+
   // Derived from filter state; read-only.
   const isAllDayMode = computed(() => !query.value.startTime && !query.value.endTime)
 
@@ -122,6 +130,7 @@ export function useScenarioDisplay (): ScenarioDisplay {
     baseMap,
     unitSystem,
     showBbox,
+    showVehicles,
     isAllDayMode,
   }
 }

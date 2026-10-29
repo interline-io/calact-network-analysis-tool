@@ -189,6 +189,7 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
     'buffers': 'Loading buffer demographics...',
     'stop-clusters': 'Loading stop clusters...',
     'fares': 'Loading fares...',
+    'vehicle-tracks': 'Loading vehicle schedules...',
     'wsdot-levels': 'Computing WSDOT service levels...',
     'wsdot-geographies': 'Loading WSDOT geography rollups...',
     'complete': 'Complete',

@@ -109,6 +109,7 @@
           :fit-overlay-key="fitOverlayKey"
           :sidebar-panel-open="!!tripPanelSubject || !!selectedPanelData?.row"
           :clear-selection-key="mapSelectionClearKey"
+          :vehicle-time="vehicleTime"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
@@ -143,6 +144,13 @@
             />
           </template>
         </cal-map>
+
+        <cal-vehicle-player
+          v-if="showVehicles && (scenarioFilterResult?.vehicleTracks?.length ?? 0) > 0"
+          v-model:time="vehicleTime"
+          :date="vehiclePlaybackDay"
+          :panel-width="activeTabPanelWidth"
+        />
 
         <div v-if="acsDatasetLabel" class="cal-acs-vintage">
           Showing data for {{ acsDatasetLabel }}
@@ -289,6 +297,7 @@ const {
   aggregateLayer,
   onlyWithStops,
   showBbox,
+  showVehicles,
 } = useScenarioDisplay()
 const {
   bbox,
@@ -1137,6 +1146,31 @@ const { refresh: refreshCensusClip } = useAggregateRefetch({
   markedStopIds,
 })
 
+// Fetch the vehicle playback's tracks while "Show vehicles" is on, reusing the
+// same receiver.
+useVehicleTracksRefetch({
+  scenarioReceiver,
+  scenarioData,
+  scenarioConfig,
+  loadingProgress,
+  showLoadingModal,
+  error,
+  requestErrors,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
+  refetchInFlight,
+  runInFlight,
+  fetchMode,
+})
+
+/////////////////
+// Vehicle playback
+/////////////////
+
+const vehiclePlaybackDay = computed(() => vehiclePlaybackDate(scenarioConfig.value))
+// Seconds from midnight. Opens on the morning peak, when there is most to see.
+const vehicleTime = ref(8 * 3600)
+
 /////////////////
 // Filter tags
 /////////////////
@@ -1301,6 +1335,7 @@ async function resetFilters () {
     onlyWithStops: undefined,
     showStopBuffer: undefined,
     showBbox: undefined,
+    showVehicles: undefined,
     dataDisplayMode: undefined,
   })
 }

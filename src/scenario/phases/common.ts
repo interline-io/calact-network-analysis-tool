@@ -22,12 +22,13 @@ export const PHASE_MAX_CONCURRENT_REQUESTS = 8
 // Phase identities for the progress plan and weights. 'buffers' covers all
 // four buffer passes as one slice; the 'wsdot-*' phases are implemented in
 // src/analysis/wsdot, with only their identity living here.
-export type ScenarioPhaseName = 'feed-versions' | 'stops' | 'stop-census' | 'routes' | 'departures' | 'buffers' | 'stop-clusters' | 'fares' | 'flex-areas' | 'census-values' | 'wsdot-levels' | 'wsdot-geographies'
+export type ScenarioPhaseName = 'feed-versions' | 'stops' | 'stop-census' | 'routes' | 'departures' | 'buffers' | 'stop-clusters' | 'fares' | 'flex-areas' | 'census-values' | 'vehicle-tracks' | 'wsdot-levels' | 'wsdot-geographies'
 
 // Pipeline ordering for phase plans and progress display. Report phases come
 // after the fetch phases they consume.
 export const SCENARIO_PHASE_ORDER: ScenarioPhaseName[] = [
   'feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'buffers', 'stop-clusters', 'flex-areas', 'fares', 'census-values',
+  'vehicle-tracks',
   'wsdot-levels', 'wsdot-geographies',
 ]
 
@@ -44,6 +45,7 @@ export const SCENARIO_PHASE_WEIGHTS: Record<ScenarioPhaseName, number> = {
   'fares': 1,
   'flex-areas': 1,
   'census-values': 1,
+  'vehicle-tracks': 1,
   'wsdot-levels': 1,
   'wsdot-geographies': 3,
 }
