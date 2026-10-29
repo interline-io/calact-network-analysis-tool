@@ -71,14 +71,11 @@
           <span class="cal-transfer-rose-label-name">{{ p.name }}</span>
         </button>
       </div>
+      <!-- The how-to-read text sets the caption's height and stays in place,
+           hidden, under a hover's or highlight's text, so the page keeps its
+           height as the text changes. -->
       <figcaption class="cal-transfer-rose-caption">
-        <template v-if="hover">
-          {{ hover.text }}
-        </template>
-        <template v-else-if="checkedFlows.length > 0">
-          Highlighted: {{ flowsText(checkedFlows) }}
-        </template>
-        <template v-else>
+        <div :class="{ 'cal-transfer-rose-caption-held': captionText }">
           Each band pairs where arriving trips come from with where departing
           trips go, as wide as the connections the schedule offers between
           them, not riders.
@@ -86,7 +83,10 @@
             <cat-icon icon="information" size="small" /><span class="is-sr-only">How to read the compass</span>
           </cat-tooltip>
           Check rows, or click a place or band, to highlight their flows.
-        </template>
+        </div>
+        <div v-if="captionText" class="cal-transfer-rose-caption-over">
+          {{ captionText }}
+        </div>
       </figcaption>
     </figure>
 
@@ -330,6 +330,9 @@ const emphasis = computed(() => {
   }
   return checkedFlows.value.length > 0 ? new Set(checkedFlows.value) : undefined
 })
+// The caption's text over the how-to-read text: the hover's, else the
+// highlighted flows'.
+const captionText = computed(() => hover.value?.text ?? (checkedFlows.value.length > 0 ? `Highlighted: ${flowsText(checkedFlows.value)}` : undefined))
 
 function setChecked (flows: TransferRoseFlow[], on: boolean) {
   const next = new Set(checked.value)
@@ -600,8 +603,19 @@ function at (x: number, y: number) {
 }
 
 .cal-transfer-rose-caption {
-  min-height: 2.5em;
+  position: relative;
   margin-top: 0.25rem;
+}
+
+.cal-transfer-rose-caption-held {
+  visibility: hidden;
+}
+
+// Clipped to the how-to-read text's height, should a text run longer.
+.cal-transfer-rose-caption-over {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 
 .cal-transfer-rose-frame {
