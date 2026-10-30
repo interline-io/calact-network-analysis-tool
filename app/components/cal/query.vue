@@ -184,14 +184,6 @@
                   <span v-else>{{ selectedGeographyTagOptions.length }} results found</span>
                 </strong>
               </template>
-              <template #option="{ option }">
-                <div class="is-flex is-align-items-center">
-                  <span>{{ option.label }}</span>
-                  <span class="tag is-light is-small ml-2">
-                    {{ option.geographyType }}
-                  </span>
-                </div>
-              </template>
             </cat-taginput>
           </cat-field>
         </div>
