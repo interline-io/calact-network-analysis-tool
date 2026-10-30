@@ -184,6 +184,14 @@
                   <span v-else>{{ selectedGeographyTagOptions.length }} results found</span>
                 </strong>
               </template>
+              <template #option="{ option }">
+                <div class="is-flex is-align-items-center">
+                  <span>{{ option.name }}</span>
+                  <span class="tag is-light ml-2">
+                    {{ option.layerName }}
+                  </span>
+                </div>
+              </template>
             </cat-taginput>
           </cat-field>
         </div>
@@ -692,7 +700,7 @@ function onGeographySaved (saved: SavedGeography) {
   }
 }
 
-const selectedGeographyTagOptions = computed((): { value: number, label: string }[] => {
+const selectedGeographyTagOptions = computed((): { value: number, label: string, name: string, layerName: string }[] => {
   // Combine selected geographies, viewport geographies, and search results
   const geogs: CensusGeography[] = []
   for (const geo of props.censusGeographiesSelected || []) {
@@ -724,13 +732,15 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string 
     options.set(geo.id, geo)
   }
 
-  // Convert `options` into Array with `value` and `label` props
+  // Convert `options` into Array with `value` and `label` props. The dropdown
+  // shows `name` with `layerName` as a tag; selected tags and screen reader
+  // announcements use `label`, which keeps the layer in parentheses.
   const results = []
   for (const geo of options.values()) {
-    // for now, generate a id to put after the name
     const stateDesc = geo.adm1_name ? `, ${geo.adm1_name}` : ''
-    const label = `${geo.name}${stateDesc} (${geo.layer.description || geo.layer.name})`
-    results.push({ value: geo.id, label })
+    const name = `${geo.name}${stateDesc}`
+    const layerName = geo.layer.description || geo.layer.name
+    results.push({ value: geo.id, label: `${name} (${layerName})`, name, layerName })
   }
   return results
 })
