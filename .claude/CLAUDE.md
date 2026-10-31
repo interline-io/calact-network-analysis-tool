@@ -27,7 +27,7 @@ To use local copies of dependencies: run `pnpm link ../catenary` or `pnpm link .
 - **Nuxt 4** with SSR disabled (`ssr: false`) — runs as an SPA
 - **TypeScript strict mode** with `strictTemplates: true` for Vue template prop checking
 - **Bulma CSS** via SCSS (`app/assets/main.scss`)
-- **Node.js v20** (see `.nvmrc`)
+- **Node.js v24** (see `.nvmrc`)
 - **Auth0** login gate with role `tl_calact_nat` required for access
 
 ### Key Dependencies
