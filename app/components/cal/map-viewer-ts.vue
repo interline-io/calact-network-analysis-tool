@@ -7,7 +7,7 @@ import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from '
 import * as maplibre from 'maplibre-gl'
 import { BASEMAP_ATTRIBUTION, basemapStyle, protomapsLabelLayers } from '~/utils/basemap'
 import { useRuntimeConfig } from '#imports'
-import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
+import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature, UnitSystem } from '~~/src/core'
 import { STOP_AGG_ELEMENT_IDS, STOP_CLUSTER_COLOR, densityUnitLabel, formatCensusValue } from '~~/src/core'
 import CalMapPopup from './map-popup.vue'
 
@@ -52,7 +52,7 @@ const mapClass = defineModel<string>('mapClass', { default: 'short' })
 const center = defineModel<Point>('center', { default: () => ({ lon: -122.4194, lat: 37.7749 }) })
 const zoom = defineModel<number>('zoom', { default: 12 })
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   // Current loading stage - skip map updates during 'departures' stage to prevent browser crashes
   loadingStage?: string
   // Left padding in pixels to account for overlay panels covering the map
@@ -65,9 +65,13 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Features to fit to when fitOverlayKey changes
   fitTargetFeatures?: Feature[]
-}>()
-
-const { unitSystem, isAllDayMode } = useScenarioDisplay()
+  // Units and visit labels for the choropleth tooltip
+  unitSystem?: UnitSystem
+  isAllDayMode?: boolean
+}>(), {
+  unitSystem: 'us',
+  isAllDayMode: true,
+})
 
 // Stages during which we should skip expensive map updates
 const skipUpdateStages = new Set(['departures'])
@@ -318,7 +322,7 @@ function initMap () {
       const title = document.createElement('strong')
       title.textContent = String(fp?.name || fp?.geoid || '')
       choroplethTooltip.appendChild(title)
-      const visitsLabel = isAllDayMode.value ? 'Total visits' : 'Total visits in window'
+      const visitsLabel = props.isAllDayMode ? 'Total visits' : 'Total visits in window'
       for (const [label, value] of [
         ['Stops', fp?.stops_count ?? 0],
         ['Routes', fp?.routes_count ?? 0],
@@ -348,7 +352,7 @@ function initMap () {
           lines.push(['Intersection', formatCensusValue(scaled as number | null, fmt)])
         }
         if (density !== null) {
-          lines.push(['Density', `${formatCensusValue(density as number | null, fmt)} ${densityUnitLabel(unitSystem.value)}`])
+          lines.push(['Density', `${formatCensusValue(density as number | null, fmt)} ${densityUnitLabel(props.unitSystem)}`])
         }
         for (const [k, v] of lines) {
           choroplethTooltip.appendChild(document.createElement('br'))

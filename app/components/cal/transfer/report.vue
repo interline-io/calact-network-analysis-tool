@@ -417,8 +417,9 @@ const subjectChoice = computed({
 const hasSubject = computed(() => !!transferSubjectFromKey(subject.value))
 const view = defineModel<TransferReportView>('view', { default: 'summary' })
 const date = defineModel<string | undefined>('date')
-// The scenario's time of day, shared with the Filter tab, through the URL.
-const { startTime, endTime } = useScenarioFilters()
+// The scenario's time of day, shared with the Filter tab.
+const startTime = defineModel<Date | undefined>('startTime')
+const endTime = defineModel<Date | undefined>('endTime')
 const settings = defineModel<TransferSettings>('settings', { required: true })
 // The open settings panel, if any; one opens at a time.
 const openSection = defineModel<TransferReportSection | undefined>('section', { required: true })

@@ -7,7 +7,6 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { geographyLayerQuery, type CensusDataset, type CensusGeography } from '~~/src/tl'
-import { useScenarioInputs } from '~/composables/useScenarioInputs'
 
 export interface CensusGeographyLayerOption {
   label: string
@@ -50,9 +49,7 @@ function formatCensusLayerLabel (_dsName: string, layerName: string): string {
 
 // geographyIds are the query's census geographies, whether picked one by one
 // or from saved boundary sets
-export function useCensusGeographyLayers (geographyIds: Ref<number[]>): UseCensusGeographyLayersReturn {
-  const { geoDatasetName } = useScenarioInputs()
-
+export function useCensusGeographyLayers (geographyIds: Ref<number[]>, geoDatasetName: Ref<string>): UseCensusGeographyLayersReturn {
   const { result } = useQuery<{ census_datasets: CensusDataset[] }>(
     geographyLayerQuery,
     () => ({

@@ -29,6 +29,7 @@
       <div style="position:relative">
         <div v-if="activeTab.tab === 'query'" class="cal-tab-content cal-tab-query">
           <cal-query
+            :scenario-params="scenarioParams"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :viewport-geographies="viewportGeographies"
             :viewport-geographies-loading="viewportGeoLoading"
@@ -57,6 +58,7 @@
           :class="['cal-tab-content', 'cal-tab-filter', { 'has-subtab': activeTab.sub }]"
         >
           <cal-filter
+            :scenario-params="scenarioParams"
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
             :census-geographies-selected="censusGeographiesSelected"
@@ -74,6 +76,7 @@
         <div v-if="activeTab.tab === 'report'" class="cal-tab-content cal-tab-report">
           <cal-report
             v-model:tab="reportTab"
+            :scenario-params="scenarioParams"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :scenario-filter-result="scenarioFilterResult"
             :export-features="exportFeatures"
@@ -89,6 +92,8 @@
                 v-model:view="transferView"
                 v-model:section="transferSection"
                 v-model:date="transferDate"
+                v-model:start-time="startTime"
+                v-model:end-time="endTime"
                 v-model:settings="transfers.settings"
                 :title="transfers.title"
                 :subject-options="transfers.subjectOptions"
@@ -126,16 +131,21 @@
         </div>
 
         <div v-if="activeTab.tab === 'analysis'" class="cal-tab-content cal-tab-analysis">
+          <!-- A report's run records its inputs, as a browse run does, so the
+               report's link reruns it with the same area and dates. -->
           <analysis-picker
+            v-model:advanced-report="advancedReport"
             :scenario-data="scenarioData"
             :scenario-config="scenarioConfig"
             :fetch-mode="fetchMode"
             @cancel="setTab({ tab: 'query', sub: '' })"
+            @run="pinScenarioInputs"
           />
         </div>
 
         <!-- This is a component for displaying the map and legend -->
         <cal-map
+          :scenario-params="scenarioParams"
           :census-geographies-selected="censusGeographiesSelected"
           :query-polygon="queryPolygon"
           :viewport-geographies="viewportGeographies"
@@ -178,10 +188,13 @@
               @open-transfers="tripPanelOpenedSubject && openTransfers(tripPanelOpenedSubject)"
             />
             <cal-census-panel
+              v-model:choropleth-element="choroplethElement"
               :row="selectedPanelData?.row ?? null"
               :layer-label="aggregateLayerLabel"
               :geography="selectedPanelData?.geography ?? null"
               :analysis-area="analysisAreaPanelData"
+              :unit-system="unitSystem"
+              :stop-buffer-radius="stopBufferRadius"
               @close="selectedAggregationGeoid = null"
               @view-details="openCensusDetails(selectedAggregationGeoid ?? undefined)"
             />
@@ -289,6 +302,8 @@ import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import { useQueryGeography } from '~/composables/useQueryGeography'
 import { useFetchMode } from '~/composables/useFetchMode'
+import { useUrlQuery } from '~/composables/useUrlQuery'
+import { createScenarioParams } from '~/composables/scenarioParams'
 import {
   geographyLayerQuery,
   geographyBboxQuery,
@@ -329,15 +344,23 @@ import {
 import { useRouter } from '#imports'
 import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TransferRose, type TripSubject, decodeTransferSettings, encodeTransferSettings } from '~~/src/scenario'
 
-// Initialize composables
-const { query, setQuery } = useUrlQuery()
+// The URL's query, and the scenario parameters it holds. Components and
+// composables below the page take the parameters they use from here.
+const urlQuery = useUrlQuery()
+const { query, setQuery } = urlQuery
+const scenarioParams = createScenarioParams(urlQuery)
 const {
   showAggAreas,
   aggClipMode,
   aggregateLayer,
+  choroplethElement,
+  shadeByDensity,
   onlyWithStops,
   showBbox,
-} = useScenarioDisplay()
+  showStopBuffer,
+  hideUnmarked,
+  unitSystem,
+} = scenarioParams.display
 const {
   bbox,
   cannedBbox,
@@ -346,6 +369,7 @@ const {
   geographyIds,
   geomSource,
   geomLayer,
+  savedGeographies,
   geoDatasetName,
   includeFixedRoute,
   includeFlexAreas,
@@ -354,7 +378,8 @@ const {
   stopBufferRadius,
   stopBufferLayer,
   clusterDistance,
-} = useScenarioInputs()
+  pinScenarioInputs,
+} = scenarioParams.inputs
 const {
   startTime,
   endTime,
@@ -370,7 +395,12 @@ const {
   fareMax,
   fareMin,
   clusterMaxTransferMinutes,
-} = useScenarioFilters()
+  flexServicesEnabled,
+  flexAdvanceNotice,
+  flexAreaTypesSelected,
+  flexRiderEligibility,
+  flexColorBy,
+} = scenarioParams.filters
 
 definePageMeta({
   layout: false
@@ -510,8 +540,14 @@ const {
   queryGeographyMessages,
   savedGeographyLoads,
   rememberSavedGeography,
-} = useQueryGeography(() => censusGeographiesSelected.value)
-const { censusGeographyLayerOptions, censusGeographiesSelected } = useCensusGeographyLayers(queryGeographyIds)
+} = useQueryGeography({
+  geomSource,
+  savedGeographies,
+  geographyIds,
+  geoDatasetName,
+  censusGeographiesSelected: () => censusGeographiesSelected.value,
+})
+const { censusGeographyLayerOptions, censusGeographiesSelected } = useCensusGeographyLayers(queryGeographyIds, geoDatasetName)
 
 const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
 
@@ -905,7 +941,18 @@ const exportFeatures = shallowRef<Feature[]>([])
 
 // Flex display features (map + Reports tab). Instantiated here because it
 // depends on scenarioFilterResult; consumed by the map and report components.
-const { flexDisplayFeatures, flexFeaturesForReport } = useFlexDisplayFeatures({ scenarioData, scenarioFilterResult })
+const { flexDisplayFeatures, flexFeaturesForReport } = useFlexDisplayFeatures({
+  scenarioData,
+  scenarioFilterResult,
+  startTime,
+  endTime,
+  flexServicesEnabled,
+  flexAdvanceNotice,
+  flexAreaTypesSelected,
+  flexRiderEligibility,
+  flexColorBy,
+  hideUnmarked,
+})
 
 // Fetched trip details, shared by the trip panel and the full trip table so a
 // trip is fetched once whichever view asks first.
@@ -1212,13 +1259,18 @@ const choroplethAggregateData = computed(() => {
   })
 })
 
-const { stopBufferFeatures } = useStopBufferFeatures({ scenarioFilterResult })
+const { stopBufferFeatures } = useStopBufferFeatures({ scenarioFilterResult, showStopBuffer, stopBufferRadius })
 
 const { choroplethClassification, choroplethFeatures } = useChoroplethClassification({
   choroplethAggregateData,
   censusGeographies: computed(() => scenarioFilterResult.value?.censusGeographies),
   choroplethGeoResult,
   selectedAggregationGeoid,
+  showAggAreas,
+  aggClipMode,
+  choroplethElement,
+  shadeByDensity,
+  unitSystem,
 })
 
 // Whether runs fetch through the BFF or straight from the browser.
@@ -1238,7 +1290,7 @@ const {
   runInFlight,
   stopDepartureCount,
   runQuery: runScenarioQuery,
-} = useScenarioRun({ scenarioData, scenarioFilterResult, scenarioConfig, scenarioFilter, fetchMode })
+} = useScenarioRun({ scenarioData, scenarioFilterResult, scenarioConfig, scenarioFilter, fetchMode, pinScenarioInputs })
 
 // Debounced standalone recomputes that stream into the same receiver without
 // re-running the whole scenario.
@@ -1479,7 +1531,7 @@ async function resetFilters () {
     flexColorBy: undefined,
     stopBufferRadius: undefined,
     stopBufferLayer: undefined,
-    // Map Display panel — every key useScenarioDisplay owns, so a cleared
+    // Map Display panel — every key createScenarioDisplay owns, so a cleared
     // scenario doesn't inherit an overlay configured for the last one.
     showAggAreas: undefined,
     aggClip: undefined,

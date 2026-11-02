@@ -192,8 +192,10 @@ import type { TripDetailsTab } from './trip-details.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, routesById, formatFareAmount, type Route, type Stop, type Agency } from '~~/src/tl'
 import { stopClusterCsv, type ScenarioFilterResult, type TripSubject, type BufferDetailsKind, type BufferDetailsPayload, buildRouteColumns, buildStopColumns, buildStopGeoAggregateColumns, buildAgencyColumns, stopClusterColumns, flexAreaColumns, flexFeatureToCsv } from '~~/src/scenario'
 import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag, type TableReport } from '~~/src/core'
+import type { ScenarioParams } from '~/composables/scenarioParams'
 
 const props = defineProps<{
+  scenarioParams: ScenarioParams
   filterTags: FilterTag[]
   censusGeographyLayerOptions: { label: string, value: string }[]
   scenarioFilterResult?: ScenarioFilterResult
@@ -201,8 +203,8 @@ const props = defineProps<{
   flexDisplayFeatures?: Feature[]
 }>()
 
-const { aggregateLayer, onlyWithStops, dataDisplayMode, isAllDayMode } = useScenarioDisplay()
-const { startDate, endDate, fixedRouteEnabled, stopBufferRadius, stopBufferLayer, geoDatasetName } = useScenarioInputs()
+const { aggregateLayer, onlyWithStops, dataDisplayMode, isAllDayMode } = props.scenarioParams.display
+const { startDate, endDate, fixedRouteEnabled, stopBufferRadius, stopBufferLayer, geoDatasetName } = props.scenarioParams.inputs
 
 const emit = defineEmits<{
   openBufferDetails: [payload: BufferDetailsPayload]

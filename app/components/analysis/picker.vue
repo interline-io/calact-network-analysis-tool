@@ -8,6 +8,7 @@
       :scenario-data="scenarioData"
       :fetch-mode="fetchMode"
       @cancel="handleCancel"
+      @run="emit('run')"
     />
     <!-- Analysis selection interface -->
     <div v-else>
@@ -88,17 +89,15 @@ const analysisComponents: Record<string, { component: any }> = {
   'visioneval': { component: defineAsyncComponent(() => import('./visioneval.vue')) },
 }
 
-// The selected report type, kept in the URL.
-const { query, setQuery } = useUrlQuery()
-const selectedReportType = computed<string>({
-  get: () => String(query.value.advancedReport || ''),
-  set: (v) => { setQuery({ advancedReport: v || undefined }) },
-})
+// The selected report type.
+const selectedReportType = defineModel<string>('advancedReport', { default: '' })
 
 const { hasResultsState } = useAnalysisResults()
 
 const emit = defineEmits<{
   cancel: []
+  // A report started running.
+  run: []
 }>()
 
 // Check if any analysis has results

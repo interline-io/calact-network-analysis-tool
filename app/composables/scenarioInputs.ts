@@ -12,10 +12,10 @@ import {
   STOP_BUFFER_DEFAULT_RADIUS,
   type Bbox,
 } from '~~/src/core'
-import { useUrlQuery } from './useUrlQuery'
+import type { QuerySource } from './pendingQuery'
 import { scenarioInputsToPin } from './scenarioInputsToPin'
 
-interface ScenarioInputs {
+export interface ScenarioInputs {
   bbox: WritableComputedRef<Bbox>
   cannedBbox: WritableComputedRef<string>
   startDate: WritableComputedRef<Date>
@@ -43,13 +43,13 @@ interface ScenarioInputs {
   // setQuery is only race-safe within a single call, so the three params
   // must land in one navigation.
   applyDatesAndFvids: (v: { startDate: Date, endDate: Date, fvids: string }) => void
-  // Writes the area and dates a run uses to the URL, defaults included.
+  // Writes the area and dates a run uses to the query, defaults included.
   pinScenarioInputs: () => void
 }
 
-// URL-backed inputs that drive scenario fetching.
-export function useScenarioInputs (): ScenarioInputs {
-  const { query, setQuery, getArrayParam } = useUrlQuery()
+// Inputs that drive scenario fetching, kept in a query.
+export function createScenarioInputs (source: QuerySource): ScenarioInputs {
+  const { query, setQuery, getArrayParam } = source
 
   const cannedBbox = computed<string>({
     get: () => query.value.example?.toString() || 'downtown-portland',
@@ -180,7 +180,7 @@ export function useScenarioInputs (): ScenarioInputs {
     })
   }
 
-  // Records the inputs a run uses in the URL (see scenarioInputsToPin).
+  // Records the inputs a run uses in the query (see scenarioInputsToPin).
   function pinScenarioInputs () {
     setQuery(scenarioInputsToPin({
       geomSource: geomSource.value,

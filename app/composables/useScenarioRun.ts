@@ -9,7 +9,6 @@
 import { shallowRef, ref, watch, markRaw, type MaybeRefOrGetter, type Ref, type ShallowRef } from 'vue'
 import { useScenarioStream, type UseScenarioStreamReturn } from './useScenarioStream'
 import type { FetchMode } from './useOpenStream'
-import { useScenarioInputs } from './useScenarioInputs'
 import { hasSearchArea } from '~~/src/core'
 import {
   ScenarioDataReceiver,
@@ -30,6 +29,8 @@ interface UseScenarioRunDeps {
   scenarioConfig: Ref<ScenarioConfig>
   scenarioFilter: Ref<ScenarioFilter>
   fetchMode: MaybeRefOrGetter<FetchMode>
+  // Writes the inputs a run uses to their query, defaults included.
+  pinScenarioInputs: () => void
 }
 
 // The stream state passes through under its own names; renames happen at the
@@ -54,7 +55,6 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
   const refetchInFlight = ref(0)
   const runInFlight = ref(0)
   const scenarioReceiver = shallowRef<ScenarioDataReceiver>()
-  const { pinScenarioInputs } = useScenarioInputs()
 
   const fetchScenario = async (): Promise<boolean> => {
     const config = deps.scenarioConfig.value
@@ -62,7 +62,7 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
       return false
     }
     // Every run records its inputs in the URL, so a link to its results reruns it.
-    pinScenarioInputs()
+    deps.pinScenarioInputs()
 
     // Create receiver to accumulate scenario data
     const receiver = new ScenarioDataReceiver({

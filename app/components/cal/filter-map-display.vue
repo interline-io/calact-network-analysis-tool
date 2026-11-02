@@ -142,8 +142,10 @@ import {
   isElementDensityEligible,
   HIERARCHICAL_TIGER_LAYERS,
 } from '~~/src/core'
+import type { ScenarioParams } from '~/composables/scenarioParams'
 
 const props = defineProps<{
+  scenarioParams: ScenarioParams
   censusGeographyLayerOptions?: { label: string, value: string }[]
 }>()
 
@@ -161,8 +163,8 @@ const {
   hideUnmarked,
   baseMap,
   showBbox,
-} = useScenarioDisplay()
-const { stopBufferRadius } = useScenarioInputs()
+} = props.scenarioParams.display
+const { stopBufferRadius } = props.scenarioParams.inputs
 
 const shadeByDensityEligible = computed(() => isElementDensityEligible(choroplethElement.value))
 

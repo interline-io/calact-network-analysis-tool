@@ -1,5 +1,5 @@
 import type { Router } from 'vue-router'
-import { PendingQuery, type QueryValue } from './pendingQuery'
+import { PendingQuery, querySource, type QuerySource } from './pendingQuery'
 
 const pendingQueries = new WeakMap<Router, PendingQuery>()
 
@@ -20,42 +20,7 @@ function pendingQueryFor (router: Router): PendingQuery {
   return pq
 }
 
-// Shared URL plumbing for the URL-backed composables: read through `query`,
-// write through setQuery. setQuery takes several keys at once, and writes in
-// the same tick share one navigation, so keys set together can't race.
-export function useUrlQuery () {
-  const pq = pendingQueryFor(useRouter())
-  const query = pq.query
-
-  // Values are strings (or string arrays), as the URL holds them, so a write
-  // reads back exactly as it will once it lands. null and undefined remove
-  // the key.
-  function setQuery (params: Record<string, QueryValue>): Promise<void> {
-    return pq.set(params)
-  }
-
-  // CSV array param convention: missing → undefined (filter not applied),
-  // explicitly empty → [] (all unchecked), otherwise → split comma list.
-  function getArrayParam (key: string): string[] | undefined {
-    if (!Object.prototype.hasOwnProperty.call(query.value, key)) {
-      return undefined
-    }
-    const param = query.value[key]
-    if (!param) {
-      return []
-    }
-    return param.toString().split(',').filter(Boolean)
-  }
-
-  function setArrayParam (key: string, v: string[] | undefined) {
-    if (v === undefined) {
-      setQuery({ [key]: undefined })
-    } else if (v.length === 0) {
-      setQuery({ [key]: '' })
-    } else {
-      setQuery({ [key]: v.join(',') })
-    }
-  }
-
-  return { query, setQuery, getArrayParam, setArrayParam }
+// The URL's query parameters.
+export function useUrlQuery (): QuerySource {
+  return querySource(pendingQueryFor(useRouter()))
 }

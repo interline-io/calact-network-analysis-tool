@@ -79,8 +79,13 @@
 <script setup lang="ts">
 import { FARE_MAX_DEFAULT, FARE_MIN_DEFAULT } from '~~/src/core'
 import { FARE_CATEGORIES, fareCategoryDescriptions, fareCategoryLabels, type FareCategory } from '~~/src/tl'
+import type { ScenarioParams } from '~/composables/scenarioParams'
 
-const { selectedFareCategories, fareMax, fareMin } = useScenarioFilters()
+const props = defineProps<{
+  scenarioParams: ScenarioParams
+}>()
+
+const { selectedFareCategories, fareMax, fareMin } = props.scenarioParams.filters
 const setFareMax = keepValueWhenEmptied(fareMax)
 const setFareMin = keepValueWhenEmptied(fareMin)
 

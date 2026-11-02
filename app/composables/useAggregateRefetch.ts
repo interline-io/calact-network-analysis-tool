@@ -5,8 +5,6 @@
 // concurrently. Streaming/abort/debounce machinery lives in useStreamingRefetch.
 
 import { ref, watchEffect, type Ref } from 'vue'
-import { useScenarioDisplay } from './useScenarioDisplay'
-import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
 import { queryArea } from '~~/src/core'
 import { phaseEnabled, type CensusValuesPhaseConfig } from '~~/src/scenario'
@@ -21,18 +19,13 @@ export interface UseAggregateRefetchDeps extends StreamingRefetchDeps {
 }
 
 export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: () => void } {
-  const { aggregateLayer, showAggAreas, aggClipMode } = useScenarioDisplay()
-  // The radius defines the stop buffer clip, so changing it changes the
-  // numbers just as much as changing the layer does.
-  const { stopBufferRadius } = useScenarioInputs()
-
   // The scenario run fetches clipped outlines when the display already wants
   // them, so this only has to cover turning a clipped mode on afterwards.
   // Latched, so switching back to unclipped doesn't throw the outlines away
   // and make returning cost another round trip.
   const geometryLatch = ref(false)
   watchEffect(() => {
-    if (showAggAreas.value && aggClipMode.value !== 'unclipped') {
+    if (deps.scenarioConfig.value.includeIntersectionGeometry) {
       geometryLatch.value = true
     }
   })
@@ -48,7 +41,14 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
   const clipToMarkedStops = ref(false)
 
   useStreamingRefetch(deps, {
-    watchSources: [aggregateLayer, stopBufferRadius, geometryLatch, manualRefresh],
+    // The radius defines the stop buffer clip, so changing it changes the
+    // numbers just as much as changing the layer does.
+    watchSources: [
+      () => deps.scenarioConfig.value.aggregateLayer,
+      () => deps.scenarioConfig.value.stopBufferRadius,
+      geometryLatch,
+      manualRefresh,
+    ],
     // Reuse the standalone census-values phase endpoint (it takes
     // geographyIds or a plain bbox) rather than a bespoke one.
     endpoint: 'scenario/census-values',
@@ -60,7 +60,7 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
     // moment of staleness.
     clearBeforeFetch: () => {
       const loaded = deps.scenarioData.value?.censusGeographies?.values().next().value
-      return !!loaded && loaded.layer !== aggregateLayer.value
+      return !!loaded && loaded.layer !== deps.scenarioConfig.value.aggregateLayer
     },
     clearStale: receiver => receiver.clearCensusGeographies(),
     plan: (data, config) => {

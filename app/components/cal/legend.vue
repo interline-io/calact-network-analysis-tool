@@ -183,6 +183,8 @@ import {
   formatCensusBucketLabel,
   STOP_CLUSTER_COLOR,
   type ChoroplethClassification,
+  type DataDisplayMode,
+  type UnitSystem,
 } from '~~/src/core'
 
 interface StyleItem {
@@ -193,6 +195,12 @@ interface StyleItem {
 const props = defineProps<{
   styleData: StyleItem[]
   hasData: boolean
+  dataDisplayMode: DataDisplayMode
+  hideUnmarked: boolean
+  isAllDayMode: boolean
+  unitSystem: UnitSystem
+  // How the query area was chosen
+  geomSource: string
   displayEditBboxMode?: boolean
   showBbox?: boolean
   // A saved or uploaded boundary (or saved boundaries) is drawn
@@ -203,6 +211,7 @@ const props = defineProps<{
   flexStyleData?: StyleItem[]
   hasFlexData?: boolean
   // Choropleth aggregation
+  showAggAreas: boolean
   hasChoroplethData?: boolean
   choroplethClassification?: ChoroplethClassification
   // Stop clusters
@@ -216,16 +225,13 @@ defineEmits<{
 // Expanded or collapsed; map.vue collapses it while a sidebar panel is open.
 const open = defineModel<boolean>('open', { default: true })
 
-const { showAggAreas, hideUnmarked, dataDisplayMode, unitSystem, isAllDayMode } = useScenarioDisplay()
-const { geomSource } = useScenarioInputs()
-
-const showChoropleth = computed(() => showAggAreas.value && props.hasChoroplethData)
+const showChoropleth = computed(() => props.showAggAreas && props.hasChoroplethData)
 
 // In the saved or uploaded boundary mode, the query area shows only once
 // there's a boundary
-const queryAreaShown = computed(() => geomSource.value === 'custom'
+const queryAreaShown = computed(() => props.geomSource === 'custom'
   ? !!(props.showBbox && props.hasBoundary)
-  : props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary')
+  : props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary')
 
 const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.hasClusterData || queryAreaShown.value || showChoropleth.value)
 
@@ -233,7 +239,7 @@ function bucketLabel (i: number): string {
   const c = props.choroplethClassification
   if (!c) { return '' }
   const base = formatCensusBucketLabel(i, c.breaks, c.palette.length, c.format)
-  return c.isDensity ? `${base} ${densityUnitLabel(unitSystem.value)}` : base
+  return c.isDensity ? `${base} ${densityUnitLabel(props.unitSystem)}` : base
 }
 </script>
 

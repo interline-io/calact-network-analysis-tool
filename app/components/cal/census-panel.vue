@@ -95,6 +95,7 @@ import {
   type CensusPanelAnalysisArea,
   type CensusPanelGeography,
   type CensusPanelValues,
+  type UnitSystem,
   formatArea,
   formatCensusValue,
 } from '~~/src/core'
@@ -104,6 +105,8 @@ const props = defineProps<{
   layerLabel?: string
   geography?: CensusPanelGeography | null
   analysisArea?: CensusPanelAnalysisArea | null
+  unitSystem: UnitSystem
+  stopBufferRadius: number
 }>()
 
 defineEmits<{
@@ -111,7 +114,7 @@ defineEmits<{
   viewDetails: []
 }>()
 
-const { choroplethElement, unitSystem } = useScenarioDisplay()
+const choroplethElement = defineModel<string>('choroplethElement', { required: true })
 
 const activeTab = ref(0)
 
@@ -132,11 +135,9 @@ interface PanelTab {
 
 const UNCHANGED = 'Ratios (% rows) and medians are unchanged.'
 
-const { stopBufferRadius } = useScenarioInputs()
-
 // Why the Inside and Outside columns are empty: no radius, or a radius with no
 // stops to buffer or failed clip requests.
-const noBuffersNote = computed((): string => stopBufferRadius.value > 0
+const noBuffersNote = computed((): string => props.stopBufferRadius > 0
   ? 'This run has no stop buffers: it found no fixed-route stops, or the stop buffer requests failed.'
   : 'Set a stop buffer radius to split these values inside and outside the stop buffers.')
 

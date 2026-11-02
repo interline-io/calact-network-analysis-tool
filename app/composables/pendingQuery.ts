@@ -84,6 +84,54 @@ export class PendingQuery {
   }
 }
 
+// A set of query parameters, read through `query` and written through
+// setQuery: the URL's, or another set held in a PendingQuery.
+export interface QuerySource {
+  query: ComputedRef<LocationQuery>
+  // Values are strings (or string arrays), as the URL holds them, so a write
+  // reads back exactly as it will once it lands. null and undefined remove
+  // the key.
+  setQuery: (params: Record<string, QueryValue>) => Promise<void>
+  // CSV array param convention: missing → undefined (filter not applied),
+  // explicitly empty → [] (all unchecked), otherwise → split comma list.
+  getArrayParam: (key: string) => string[] | undefined
+  setArrayParam: (key: string, v: string[] | undefined) => void
+}
+
+// The query parameters a PendingQuery holds. setQuery takes several keys at
+// once, and writes in the same tick share one navigation, so keys set
+// together can't race.
+export function querySource (pq: PendingQuery): QuerySource {
+  const query = pq.query
+
+  function setQuery (params: Record<string, QueryValue>): Promise<void> {
+    return pq.set(params)
+  }
+
+  function getArrayParam (key: string): string[] | undefined {
+    if (!Object.prototype.hasOwnProperty.call(query.value, key)) {
+      return undefined
+    }
+    const param = query.value[key]
+    if (!param) {
+      return []
+    }
+    return param.toString().split(',').filter(Boolean)
+  }
+
+  function setArrayParam (key: string, v: string[] | undefined) {
+    if (v === undefined) {
+      setQuery({ [key]: undefined })
+    } else if (v.length === 0) {
+      setQuery({ [key]: '' })
+    } else {
+      setQuery({ [key]: v.join(',') })
+    }
+  }
+
+  return { query, setQuery, getArrayParam, setArrayParam }
+}
+
 function sameValue (a: LocationQuery[string] | undefined, b: QueryValue): boolean {
   if (a == null || b == null) {
     return a == null && b == null

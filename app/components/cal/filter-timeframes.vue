@@ -79,15 +79,20 @@ import {
   parseTime,
   DEFAULT_TIME_WINDOW,
 } from '~~/src/core'
+import type { ScenarioParams } from '~/composables/scenarioParams'
 
-const { startDate, endDate } = useScenarioInputs()
+const props = defineProps<{
+  scenarioParams: ScenarioParams
+}>()
+
+const { startDate, endDate } = props.scenarioParams.inputs
 const {
   startTime,
   endTime,
   selectedWeekdayMode,
   selectedWeekdays,
   setTimeRange,
-} = useScenarioFilters()
+} = props.scenarioParams.filters
 
 // Derived checkbox state: checked (All Day) when both times are undefined, unchecked sets default times
 const isAllDayMode = computed({

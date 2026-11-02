@@ -103,7 +103,7 @@
         aria-labelledby="cal-filter-tab-timeframes"
         tabindex="0"
       >
-        <cal-filter-timeframes />
+        <cal-filter-timeframes :scenario-params="props.scenarioParams" />
       </div>
 
       <!-- FIXED-ROUTE SERVICES -->
@@ -115,6 +115,7 @@
         tabindex="0"
       >
         <cal-filter-fixed-route
+          :scenario-params="props.scenarioParams"
           :scenario-filter-result="props.scenarioFilterResult"
           :census-geography-layer-options="props.censusGeographyLayerOptions"
         />
@@ -128,7 +129,7 @@
         aria-labelledby="cal-filter-tab-flex-services"
         tabindex="0"
       >
-        <cal-filter-flex />
+        <cal-filter-flex :scenario-params="props.scenarioParams" />
       </div>
 
       <!-- FARES (fixed-route and flex) -->
@@ -139,7 +140,7 @@
         aria-labelledby="cal-filter-tab-fares"
         tabindex="0"
       >
-        <cal-filter-fares />
+        <cal-filter-fares :scenario-params="props.scenarioParams" />
       </div>
 
       <!-- MODES & AGENCIES -->
@@ -150,7 +151,10 @@
         aria-labelledby="cal-filter-tab-agencies"
         tabindex="0"
       >
-        <cal-filter-agencies :agency-filter-items="props.agencyFilterItems" />
+        <cal-filter-agencies
+          :scenario-params="props.scenarioParams"
+          :agency-filter-items="props.agencyFilterItems"
+        />
       </div>
 
       <!-- DATA DISPLAY -->
@@ -162,6 +166,7 @@
         tabindex="0"
       >
         <cal-filter-map-display
+          :scenario-params="props.scenarioParams"
           :census-geography-layer-options="props.censusGeographyLayerOptions"
           @refresh-census="emit('refreshCensus')"
         />
@@ -175,7 +180,7 @@
         aria-labelledby="cal-filter-tab-settings"
         tabindex="0"
       >
-        <cal-filter-settings />
+        <cal-filter-settings :scenario-params="props.scenarioParams" />
       </div>
     </div>
   </div>
@@ -191,6 +196,7 @@ import {
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
+import type { ScenarioParams } from '~/composables/scenarioParams'
 
 const menuItems = [
   { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },
@@ -203,6 +209,7 @@ const menuItems = [
 ]
 
 const props = defineProps<{
+  scenarioParams: ScenarioParams
   scenarioFilterResult?: ScenarioFilterResult
   agencyFilterItems?: AgencyFilterItem[]
   censusGeographiesSelected?: CensusGeography[]
@@ -218,11 +225,11 @@ const {
   endDate,
   geomSource,
   fixedRouteEnabled,
-} = useScenarioInputs()
+} = props.scenarioParams.inputs
 const {
   selectedRouteTypes,
   flexServicesEnabled,
-} = useScenarioFilters()
+} = props.scenarioParams.filters
 
 const geographicBoundaryLabel = computed(() => {
   if (geomSource.value === 'custom' && props.queryAreaName) {
