@@ -290,29 +290,18 @@
 
 <script lang="ts" setup>
 import { computed, defineAsyncComponent, reactive, ref, shallowRef, watch } from 'vue'
-import { useQuery, useLazyQuery } from '@vue/apollo-composable'
-import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
+import { useLazyQuery } from '@vue/apollo-composable'
 import { useBufferDetails } from '~/composables/useBufferDetails'
 import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel'
 import type { TripDetailsTab } from '~/components/cal/trip-details.vue'
 import type { TransferReportSection, TransferReportView } from '~/components/cal/transfer/report.vue'
 import type { ReportTab } from '~/components/cal/report.vue'
 import { transferSubjectFromKey, transferSubjectKey, useSubjectTransfers, type TransferStopEdits } from '~/composables/useSubjectTransfers'
-import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
-import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
-import { useQueryGeography } from '~/composables/useQueryGeography'
 import { useFetchMode } from '~/composables/useFetchMode'
 import { useUrlQuery } from '~/composables/useUrlQuery'
 import { createScenarioParams } from '~/composables/scenarioParams'
-import {
-  geographyLayerQuery,
-  geographyBboxQuery,
-  stopGeoAggregateCsv,
-  routesById,
-  parseFvids,
-  fareCategoryLabels,
-  formatFareAmount,
-} from '~~/src/tl'
+import { useScenario } from '~/composables/useScenario'
+import { geographyBboxQuery } from '~~/src/tl'
 import type {
   CensusDataset,
   CensusGeography,
@@ -322,27 +311,20 @@ import {
   type Point,
   type Feature,
   type AgencyFilterItem,
-  routeTypeNames,
-  fmtDate,
-  fmtTime,
   convertBbox,
   SCENARIO_DEFAULTS,
-  censusLayerLabels,
   formatAcsDatasetLabel,
-  censusApportionGeometry,
-  censusApportionRatio,
   censusPanelAnalysisArea,
   censusPanelGeography,
   censusGeographyMapToEntries,
   type CensusGeographyEntry,
-  type FilterTag,
   QUERY_PANEL_WIDTH,
   FILTER_COLLAPSED_WIDTH,
   FILTER_EXPANDED_WIDTH,
   STOP_CLUSTER_DEFAULT_DISTANCE,
 } from '~~/src/core'
 import { useRouter } from '#imports'
-import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TransferRose, type TripSubject, decodeTransferSettings, encodeTransferSettings } from '~~/src/scenario'
+import { type TransferRose, type TripSubject, decodeTransferSettings, encodeTransferSettings } from '~~/src/scenario'
 
 // The URL's query, and the scenario parameters it holds. Components and
 // composables below the page take the parameters they use from here.
@@ -352,55 +334,76 @@ const scenarioParams = createScenarioParams(urlQuery)
 const {
   showAggAreas,
   aggClipMode,
-  aggregateLayer,
   choroplethElement,
-  shadeByDensity,
-  onlyWithStops,
   showBbox,
-  showStopBuffer,
-  hideUnmarked,
   unitSystem,
 } = scenarioParams.display
 const {
   bbox,
   cannedBbox,
-  startDate,
-  endDate,
   geographyIds,
   geomSource,
   geomLayer,
-  savedGeographies,
   geoDatasetName,
-  includeFixedRoute,
-  includeFlexAreas,
-  includeCensus,
-  fvids,
   stopBufferRadius,
-  stopBufferLayer,
   clusterDistance,
   pinScenarioInputs,
 } = scenarioParams.inputs
 const {
   startTime,
   endTime,
-  selectedRouteTypes,
-  selectedAgencies,
   selectedWeekdays,
   selectedWeekdayMode,
-  frequencyUnder,
-  frequencyOver,
-  stopVisitsUnder,
-  stopVisitsOver,
-  selectedFareCategories,
-  fareMax,
-  fareMin,
-  clusterMaxTransferMinutes,
-  flexServicesEnabled,
-  flexAdvanceNotice,
-  flexAreaTypesSelected,
-  flexRiderEligibility,
-  flexColorBy,
 } = scenarioParams.filters
+
+// Whether runs fetch through the BFF or straight from the browser.
+const fetchMode = useFetchMode()
+
+// The aggregation area selected on the map, which the census panel describes.
+const selectedAggregationGeoid = ref<string | null>(null)
+
+// The scenario the parameters describe: its query area, its run, and what the
+// map and reports draw from its results.
+const {
+  scenarioData,
+  scenarioFilterResult,
+  scenarioConfig,
+  selectedDateRange,
+  savedGeographyAccess,
+  savedGeographyLoading,
+  savedSelectionRunnable,
+  savedSelectionKind,
+  accountHasSavedBoundaries,
+  queryPolygon,
+  queryGeographyIds,
+  queryAreaName,
+  queryGeographyMessages,
+  savedGeographyLoads,
+  rememberSavedGeography,
+  censusGeographyLayerOptions,
+  censusGeographiesSelected,
+  flexDisplayFeatures,
+  flexFeaturesForReport,
+  aggregateGeoCount,
+  aggregateLayerLabel,
+  aggregateRows,
+  stopBufferFeatures,
+  choroplethClassification,
+  choroplethFeatures,
+  filterTags,
+  loadingProgress,
+  showLoadingModal,
+  error,
+  requestErrors,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
+  stopDepartureCount,
+  refetchInFlight,
+  runInFlight,
+  runQuery: runScenarioQuery,
+  refreshCensusClip,
+  clear: clearScenarioData,
+} = useScenario({ scenarioParams, fetchMode, selectedAggregationGeoid })
 
 definePageMeta({
   layout: false
@@ -411,8 +414,7 @@ const router = useRouter()
 // Clears all loaded scenario and analysis result state
 function clearScenario () {
   const { clearAllResults } = useAnalysisResults()
-  scenarioData.value = undefined
-  scenarioFilterResult.value = undefined
+  clearScenarioData()
   exportFeatures.value = []
   querySubmitted.value = false
   closeTripPanel()
@@ -480,14 +482,6 @@ const runQuery = async () => {
   await runScenarioQuery('Browsing query data loaded successfully!')
 }
 
-// Scenario data ref - the central scenario data graph, populated by fetchScenario.
-// Defined early so it can be passed into the run / flex / refetch composables below.
-// shallowRef + markRaw: scenario data is huge and updated only by whole-shell
-// replacement (getCurrentData returns a fresh object per batch), so deep
-// proxying would add tracking overhead on every stop/route/departure read
-// without enabling anything.
-const scenarioData = shallowRef<ScenarioData>()
-
 // Agency filter items with metadata about service types
 // Uses raw scenarioData (not filtered scenarioFilterResult) so ALL agencies appear
 // in the filter list, even if their routes are currently filtered out
@@ -517,41 +511,8 @@ const agencyFilterItems = computed((): AgencyFilterItem[] => {
   return Array.from(agencyMap.values()).sort((a, b) => a.name.localeCompare(b.name))
 })
 
-// Flex (demand-responsive) display features for the map and Reports tab are
-// derived by useFlexDisplayFeatures — wired up below, once scenarioFilterResult
-// is defined (see flexDisplayFeatures / flexFeaturesForReport).
-
-/////////////////
-// Geography datasets
-/////////////////
-
-// The query area from a saved or uploaded boundary, and the census
-// geographies it (or the Administrative boundaries mode) names. The geoid
-// check reads the census geographies, so it takes them lazily.
-const {
-  savedGeographyAccess,
-  savedGeographyLoading,
-  savedSelectionRunnable,
-  savedSelectionKind,
-  accountHasSavedBoundaries,
-  queryPolygon,
-  queryGeographyIds,
-  queryAreaName,
-  queryGeographyMessages,
-  savedGeographyLoads,
-  rememberSavedGeography,
-} = useQueryGeography({
-  geomSource,
-  savedGeographies,
-  geographyIds,
-  geoDatasetName,
-  censusGeographiesSelected: () => censusGeographiesSelected.value,
-})
-const { censusGeographyLayerOptions, censusGeographiesSelected } = useCensusGeographyLayers(queryGeographyIds, geoDatasetName)
-
 const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
 
-const selectedAggregationGeoid = ref<string | null>(null)
 function onSelectAggregation (row: Record<string, any>) {
   const geoid = row?.geoid
   selectedAggregationGeoid.value = typeof geoid === 'string' ? geoid : null
@@ -876,83 +837,9 @@ function onSelectGeographyFromDetails (geoid: string) {
   showAggAreas.value = true
   selectedAggregationGeoid.value = geoid
 }
-const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.value))
 
-const fvidsParsed = computed(() => parseFvids(fvids.value))
-
-// Map/Set don't survive the BFF JSON boundary — emit Record/array instead.
-const fvidsForConfig = computed(() => {
-  const picks = fvidsParsed.value.picks
-  const excluded = fvidsParsed.value.excluded
-  return {
-    feedVersionOverrides: picks.size > 0 ? Object.fromEntries(picks) : undefined,
-    excludedFeeds: excluded.size > 0 ? [...excluded] : undefined,
-  }
-})
-
-// Computed properties for config and filter to avoid duplication
-const scenarioConfig = computed((): ScenarioConfig => ({
-  geoDatasetName: geoDatasetName.value,
-  tableDatasetName: SCENARIO_DEFAULTS.tableDatasetName,
-  aggregateLayer: aggregateLayer.value,
-  reportName: 'Transit Network Explorer',
-  bbox: bbox.value,
-  startDate: startDate.value,
-  endDate: endDate.value,
-  geographyIds: queryGeographyIds.value,
-  // An uploaded or saved area, in place of the bbox and geographyIds
-  polygon: queryPolygon.value,
-  // Data loading toggles from Query tab > Advanced Settings
-  includeFixedRoute: includeFixedRoute.value,
-  includeFlexAreas: includeFlexAreas.value,
-  includeCensus: includeCensus.value,
-  includeIntersectionGeometry: showAggAreas.value && aggClipMode.value !== 'unclipped',
-  // The census panel splits every geography inside and outside the stop
-  // buffers, so the run always asks for the outside clip.
-  includeOutsideClip: true,
-  // Feed version picks from the Query-tab picker modal (URL-backed).
-  feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
-  excludedFeeds: fvidsForConfig.value.excludedFeeds,
-  stopBufferRadius: stopBufferRadius.value,
-  stopBufferLayer: stopBufferLayer.value,
-  stopClusterDistance: clusterDistance.value,
-}))
-
-const scenarioFilter = computed((): ScenarioFilter => ({
-  startTime: startTime.value,
-  endTime: endTime.value,
-  selectedRouteTypes: selectedRouteTypes.value,
-  selectedWeekdays: selectedWeekdays.value,
-  selectedWeekdayMode: selectedWeekdayMode.value,
-  selectedAgencies: selectedAgencies.value,
-  frequencyUnder: frequencyUnder.value,
-  frequencyOver: frequencyOver.value,
-  stopVisitsUnder: stopVisitsUnder.value,
-  stopVisitsOver: stopVisitsOver.value,
-  selectedFareCategories: selectedFareCategories.value,
-  fareMax: fareMax.value,
-  fareMin: fareMin.value,
-  clusterMaxTransferMinutes: clusterMaxTransferMinutes.value,
-}))
-
-// Internal state for streaming scenario data (scenarioData is defined earlier).
-const scenarioFilterResult = shallowRef<ScenarioFilterResult | undefined>(undefined)
+// The map's marked features, which the Reports tab exports.
 const exportFeatures = shallowRef<Feature[]>([])
-
-// Flex display features (map + Reports tab). Instantiated here because it
-// depends on scenarioFilterResult; consumed by the map and report components.
-const { flexDisplayFeatures, flexFeaturesForReport } = useFlexDisplayFeatures({
-  scenarioData,
-  scenarioFilterResult,
-  startTime,
-  endTime,
-  flexServicesEnabled,
-  flexAdvanceNotice,
-  flexAreaTypesSelected,
-  flexRiderEligibility,
-  flexColorBy,
-  hideUnmarked,
-})
 
 // Fetched trip details, shared by the trip panel and the full trip table so a
 // trip is fetched once whichever view asks first.
@@ -1164,167 +1051,6 @@ function onTripPanelClose () {
   mapSelectionClearKey.value++
 }
 
-// Unique census geography IDs for the current aggregate layer across all marked stops.
-// Shared base for both the filter summary count and the choropleth geometry fetch.
-const aggregateGeoIds = computed((): number[] => {
-  if (!scenarioFilterResult.value) { return [] }
-  const ids = new Set<number>()
-  for (const stop of scenarioFilterResult.value.stops) {
-    if (!stop.marked) { continue }
-    for (const geo of stop.census_geographies || []) {
-      if (geo.layer_name === aggregateLayer.value) {
-        ids.add(geo.id)
-      }
-    }
-  }
-  return [...ids]
-})
-
-const aggregateGeoCount = computed((): number => aggregateGeoIds.value.length)
-
-const aggregateLayerLabel = computed((): string => {
-  const labels = censusLayerLabels[aggregateLayer.value]
-  if (!labels) {
-    return aggregateGeoCount.value === 1 ? 'area' : 'areas'
-  }
-  return aggregateGeoCount.value === 1 ? labels.singular : labels.plural
-})
-
-/////////////////
-// Choropleth aggregation overlay
-/////////////////
-
-// Geographies the choropleth still needs a full outline for. In a clipped mode
-// that's only the ones the census phase returned no clipped outline for — a
-// geography the clip doesn't reach, or the window before those outlines have
-// streamed in. Empty when the overlay is off.
-const choroplethGeoIds = computed((): number[] => {
-  if (!showAggAreas.value) { return [] }
-  const mode = aggClipMode.value
-  const geos = scenarioFilterResult.value?.censusGeographies
-  if (!geos) { return [] }
-  return [...geos.values()]
-    .filter(g => !censusApportionGeometry(g, mode))
-    .map(g => g.id)
-})
-
-// Fetch geometry for the choropleth geographies
-const {
-  result: choroplethGeoResult,
-} = useQuery<{ census_datasets: CensusDataset[] }>(
-  geographyLayerQuery,
-  () => ({
-    dataset_name: geoDatasetName.value,
-    geography_ids: choroplethGeoIds.value,
-    include_geographies: true,
-  }),
-  () => ({
-    enabled: choroplethGeoIds.value.length > 0,
-  })
-)
-
-// Compute aggregate stats per geography
-// The stop set the census clip is computed against, so buffer coverage tracks
-// the filter rather than the whole query area.
-const markedStopIds = computed((): number[] =>
-  (scenarioFilterResult.value?.stops || []).filter(s => s.marked).map(s => s.id))
-
-// Every geography's aggregation row, before the clip filter below. The census
-// panel reads these, so a selection survives a switch to a clip that doesn't
-// reach the geography.
-const aggregateRows = computed(() => {
-  if (!showAggAreas.value || !scenarioFilterResult.value) {
-    return []
-  }
-  const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)
-  return stopGeoAggregateCsv(
-    markedStops,
-    aggregateLayer.value,
-    routesById(scenarioFilterResult.value.routes),
-    scenarioFilterResult.value.censusGeographies,
-    { onlyWithStops: onlyWithStops.value },
-  )
-})
-
-const choroplethAggregateData = computed(() => {
-  // A clipped mode measures nothing for a geography the clip doesn't reach, so
-  // drop it rather than paint an empty polygon at zero. Filtered here so the
-  // legend's breaks aren't skewed by a pile of zeroes either. Rows with no
-  // census entry are stop-derived and unaffected.
-  const mode = aggClipMode.value
-  const geos = scenarioFilterResult.value?.censusGeographies
-  return aggregateRows.value.filter((r) => {
-    const geo = geos?.get(r.geoid)
-    return !geo || censusApportionRatio(geo, mode) > 0
-  })
-})
-
-const { stopBufferFeatures } = useStopBufferFeatures({ scenarioFilterResult, showStopBuffer, stopBufferRadius })
-
-const { choroplethClassification, choroplethFeatures } = useChoroplethClassification({
-  choroplethAggregateData,
-  censusGeographies: computed(() => scenarioFilterResult.value?.censusGeographies),
-  choroplethGeoResult,
-  selectedAggregationGeoid,
-  showAggAreas,
-  aggClipMode,
-  choroplethElement,
-  shadeByDensity,
-  unitSystem,
-})
-
-// Whether runs fetch through the BFF or straight from the browser.
-const fetchMode = useFetchMode()
-
-// The scenario run lifecycle owns the loading/progress state, the streaming
-// fetch, and the shared receiver that the refetch composables reuse.
-const {
-  scenarioReceiver,
-  loadingProgress,
-  showLoadingModal,
-  error,
-  requestErrors,
-  phasePlan: scenarioPhasePlan,
-  phaseFractions: scenarioPhaseFractions,
-  refetchInFlight,
-  runInFlight,
-  stopDepartureCount,
-  runQuery: runScenarioQuery,
-} = useScenarioRun({ scenarioData, scenarioFilterResult, scenarioConfig, scenarioFilter, fetchMode, pinScenarioInputs })
-
-// Debounced standalone recomputes that stream into the same receiver without
-// re-running the whole scenario.
-useBufferRefetch({
-  scenarioReceiver,
-  scenarioData,
-  scenarioConfig,
-  loadingProgress,
-  showLoadingModal,
-  error,
-  requestErrors,
-  phasePlan: scenarioPhasePlan,
-  phaseFractions: scenarioPhaseFractions,
-  refetchInFlight,
-  runInFlight,
-  fetchMode,
-})
-
-// recompute clusters when the distance changes, reusing the same receiver.
-useClusterRefetch({
-  scenarioReceiver,
-  scenarioData,
-  scenarioConfig,
-  loadingProgress,
-  showLoadingModal,
-  error,
-  requestErrors,
-  phasePlan: scenarioPhasePlan,
-  phaseFractions: scenarioPhaseFractions,
-  refetchInFlight,
-  runInFlight,
-  fetchMode,
-})
-
 // Once the scenario finishes loading, drop a Transfer Analyst subject it
 // lacks (from a link for another area or older data, say), with its stop
 // edits. Check the stops and clusters as loaded, not as filtered, so a
@@ -1342,160 +1068,9 @@ watch(() => [scenarioData.value, scenarioData.value?.stops.length, scenarioData.
   }
 })
 
-// reload each stop's census geography when the Aggregate-by layer changes —
-// the phase fetches one layer, so the previous one's entries no longer match.
-useStopCensusRefetch({
-  scenarioReceiver,
-  scenarioData,
-  scenarioConfig,
-  loadingProgress,
-  showLoadingModal,
-  error,
-  requestErrors,
-  phasePlan: scenarioPhasePlan,
-  phaseFractions: scenarioPhaseFractions,
-  refetchInFlight,
-  runInFlight,
-  fetchMode,
-})
-
-// recompute census values when the Aggregate-by layer or the stop buffer radius
-// changes, and on demand from the Map Display refresh, reusing the same receiver.
-const { refresh: refreshCensusClip } = useAggregateRefetch({
-  scenarioReceiver,
-  scenarioData,
-  scenarioConfig,
-  loadingProgress,
-  showLoadingModal,
-  error,
-  requestErrors,
-  phasePlan: scenarioPhasePlan,
-  phaseFractions: scenarioPhaseFractions,
-  refetchInFlight,
-  runInFlight,
-  fetchMode,
-  markedStopIds,
-})
-
-/////////////////
-// Filter tags
-/////////////////
-
-const filterTags = computed((): FilterTag[] => {
-  const tags: FilterTag[] = []
-
-  // route types
-  const selectedRtypes = scenarioFilter.value.selectedRouteTypes
-  if (selectedRtypes == null || selectedRtypes.length === 0 || selectedRtypes.length === routeTypeNames.size) {
-    tags.push({ label: 'Route Type', value: 'All', active: false })
-  } else {
-    for (const rt of selectedRtypes) {
-      const name = toTitleCase(routeTypeNames.get(rt) || '')
-      if (name) {
-        tags.push({ label: 'Route Type', value: name, active: true })
-      }
-    }
-  }
-
-  // date range
-  const sd = startDate.value
-  const ed = endDate.value
-  const sameMonthYear = fmtDate(sd, 'MMM yyyy') === fmtDate(ed, 'MMM yyyy')
-  if (sameMonthYear) {
-    tags.push({ label: 'Dates', value: `${fmtDate(sd, 'dd')} – ${fmtDate(ed, 'dd MMM, yyyy')}`, active: true })
-  } else {
-    tags.push({ label: 'Dates', value: `${fmtDate(sd, 'dd MMM, yyyy')} – ${fmtDate(ed, 'dd MMM, yyyy')}`, active: true })
-  }
-
-  // days of week
-  const days = scenarioFilter.value.selectedWeekdays
-  const dowMode = scenarioFilter.value.selectedWeekdayMode
-  if (days == null || days.length === 0) {
-    tags.push({ label: 'Days of Week', value: 'All', active: false })
-  } else {
-    const modePrefix = dowMode === 'All' ? 'All of ' : 'Any of '
-    tags.push({ label: 'Days of Week', value: modePrefix + days.map(val => toTitleCase(val)).join(', '), active: true })
-  }
-
-  // time of day
-  const stime = fmtTime(scenarioFilter.value.startTime, 'p')
-  const etime = fmtTime(scenarioFilter.value.endTime, 'p')
-  if (stime && etime && stime !== etime) {
-    tags.push({ label: 'Time of Day', value: `${stime} – ${etime}`, active: true })
-  } else if (stime && !etime) {
-    tags.push({ label: 'Time of Day', value: `After ${stime}`, active: true })
-  } else if (etime && !stime) {
-    tags.push({ label: 'Time of Day', value: `Before ${etime}`, active: true })
-  } else {
-    tags.push({ label: 'Time of Day', value: 'All', active: false })
-  }
-
-  // route frequency and stop visits thresholds. The "Over" filters are the
-  // panel's ">" rows and the "Under" filters its "≦" rows, so Over is the
-  // range minimum and Under the maximum.
-  tags.push(rangeTag('Route frequency', scenarioFilter.value.frequencyOver, scenarioFilter.value.frequencyUnder, 'min', '≥'))
-  tags.push(rangeTag('Stop visits', scenarioFilter.value.stopVisitsOver, scenarioFilter.value.stopVisitsUnder, 'visits', '>'))
-
-  // fare categories
-  const fareCategories = scenarioFilter.value.selectedFareCategories
-  if (fareCategories == null) {
-    tags.push({ label: 'Fares', value: 'All', active: false })
-  } else {
-    const value = fareCategories.length === 0 ? 'None' : fareCategories.map(c => fareCategoryLabels[c]).join(', ')
-    tags.push({ label: 'Fares', value, active: true })
-  }
-  tags.push(fareAmountTag(scenarioFilter.value.fareMin, scenarioFilter.value.fareMax))
-
-  // agencies
-  const agencies = scenarioFilter.value.selectedAgencies
-  if (agencies == null || agencies.length === 0) {
-    tags.push({ label: 'Agencies', value: 'All', active: false })
-  } else {
-    for (const agency of agencies) {
-      tags.push({ label: 'Agency', value: agency, active: true })
-    }
-  }
-
-  return tags
-})
-
 //////////////////////
 // Helpers
 //////////////////////
-
-// Tag for a min/max threshold pair; inactive "All" when neither is set. The
-// lower-bound operator is passed in because the two filters differ: routeMarked
-// rejects a route only below the bound, so frequency admits equality (≥), while
-// the stop-visits gate is strictly greater (>). Both bounds render both
-// operators rather than an "N unit" range, since an equal pair is an exact
-// match under ≥ but matches nothing under >.
-function rangeTag (label: string, min: number | undefined, max: number | undefined, unit: string, minOp: '≥' | '>'): FilterTag {
-  if (min != null && max != null) {
-    return { label, value: `${minOp}${min}, ≤${max} ${unit}`, active: true }
-  }
-  if (min != null) {
-    return { label, value: `${minOp}${min} ${unit}`, active: true }
-  }
-  if (max != null) {
-    return { label, value: `≤${max} ${unit}`, active: true }
-  }
-  return { label, value: 'All', active: false }
-}
-
-// "$1.00 to $2.50", "At most $2.50", or "At least $1.00".
-function fareAmountTag (min: number | undefined, max: number | undefined): FilterTag {
-  const label = 'Fare amount'
-  if (min != null && max != null) {
-    return { label, value: `${formatFareAmount(min)} to ${formatFareAmount(max)}`, active: true }
-  }
-  if (max != null) {
-    return { label, value: `At most ${formatFareAmount(max)}`, active: true }
-  }
-  if (min != null) {
-    return { label, value: `At least ${formatFareAmount(min)}`, active: true }
-  }
-  return { label, value: 'All', active: false }
-}
 
 async function resetFilters () {
   await setQuery({
@@ -1561,13 +1136,6 @@ function itemHelper (p: string): string {
     return 'is-active'
   }
   return 'is-secondary'
-}
-
-function toTitleCase (str: string): string {
-  return str.replace(
-    /\w\S*/g,
-    text => text.charAt(0).toUpperCase() + text.substring(1).toLowerCase()
-  )
 }
 </script>
 
