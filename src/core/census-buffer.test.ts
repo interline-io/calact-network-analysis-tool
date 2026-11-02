@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BufferGeographyIntersection } from '~~/src/tl/stop-buffer'
-import { apportionBuffer, geoidFips, geographiesForAggregationRow } from './census-buffer'
+import { apportionBuffer, censusEntryRow, censusGeographyMapToEntries, geoidFips, geographiesForAggregationRow } from './census-buffer'
+import type { CensusGeographyData } from './census-columns'
 
 // Helper: build a BufferGeographyIntersection with sensible defaults so tests
 // focus on the bits they care about.
@@ -128,6 +129,50 @@ describe('apportionBuffer', () => {
       }),
     ])
     expect(out.values.pct_people_of_color).toBeCloseTo(0.4)
+  })
+})
+
+describe('censusEntryRow', () => {
+  // 1000 people over 1000 m²: 800 m² in the query area, 500 m² of that outside
+  // the stop buffers.
+  const tract: CensusGeographyData = {
+    id: 1,
+    name: 'Tract 1',
+    values: { b01003_001: 1000, b19013_001: 80000 },
+    geometryArea: 1000,
+    intersectionArea: 800,
+    intersectionRatio: 0.8,
+    bufferIntersectionArea: 300,
+    bufferIntersectionRatio: 0.3,
+    outsideIntersectionArea: 500,
+    outsideIntersectionRatio: 0.5,
+  }
+  const [outside] = censusGeographyMapToEntries(new Map([['1400000US41051010600', tract]]), 'outside')
+
+  it('reports the clip its entry was made for', () => {
+    const row = censusEntryRow(outside!, true)
+    expect(row.geoid).toBe('1400000US41051010600')
+    expect(row.geometry_area_m2).toBe(1000)
+    expect(row.intersection_area_m2).toBe(500)
+    expect(row.intersection_pct).toBe(0.5)
+    expect(row.total_population).toBe(500)
+    expect(row.median_household_income).toBe(80000)
+  })
+
+  it('keeps the full values unless scaled', () => {
+    expect(censusEntryRow(outside!, false).total_population).toBe(1000)
+  })
+
+  // Per-entity buffer entries carry areas but no ratio.
+  it('takes the ratio from the areas when the entry has none', () => {
+    const row = censusEntryRow(geography({
+      geoid: '1400000US41051010100',
+      geometryArea: 1000,
+      intersectionArea: 250,
+      values: { b01003_001: 400 },
+    }), true)
+    expect(row.intersection_pct).toBe(0.25)
+    expect(row.total_population).toBe(100)
   })
 })
 

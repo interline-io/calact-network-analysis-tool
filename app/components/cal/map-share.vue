@@ -32,7 +32,8 @@ const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   censusGeographiesSelected: CensusGeography[]
   // From map.vue's exportFeatures computed: marked features from the layers
-  // currently displayed (fixed-route and/or flex), with CSV columns merged in.
+  // currently displayed (fixed-route and/or flex) and the aggregation areas as
+  // drawn, with CSV columns merged in.
   exportFeatures?: Feature[]
 }>()
 

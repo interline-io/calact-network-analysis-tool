@@ -41,6 +41,20 @@ describe('censusPanelGeography', () => {
     }
   })
 
+  // A tract wholly inside the buffers has no one outside them, so the Outside
+  // column has no median.
+  it('has no median in a column that holds none of the geography', () => {
+    const panel = censusPanelGeography(tract({
+      bufferIntersectionArea: 800,
+      bufferIntersectionRatio: 0.8,
+      outsideIntersectionArea: 0,
+      outsideIntersectionRatio: 0,
+    }))
+    expect(panel.outside?.values.total_population).toBe(0)
+    expect(panel.outside?.values.median_household_income).toBeNull()
+    expect(panel.inside?.values.median_household_income).toBe(80000)
+  })
+
   // The map modes fall back to the query area when a clip is missing; the
   // panel shows the clip as missing instead.
   it('has no clips when the scenario has no stop buffers', () => {

@@ -347,8 +347,8 @@ import {
   type CensusGeographyEntry,
   type TableColumn,
   type TableReport,
-  deriveApportionedRow,
-  deriveCensusRow,
+  censusEntryRatio,
+  censusEntryRow,
   detectCensusColumnSourceKeys,
   formatCensusValue,
   toFiniteNumber,
@@ -429,13 +429,6 @@ const visibleEntries = computed<CensusGeographyEntry[]>(() => {
   return filter ? props.entries.filter(e => e.geoid === filter) : props.entries
 })
 
-function entryRatio (entry: CensusGeographyEntry): number {
-  if (entry.intersectionRatio != null) {
-    return entry.intersectionRatio
-  }
-  return entry.geometryArea > 0 ? entry.intersectionArea / entry.geometryArea : 0
-}
-
 const geographiesColumns = computed((): TableColumn[] => [
   { key: 'geoid', label: 'GEOID', sortable: true },
   { key: 'name', label: 'Name', sortable: true },
@@ -453,19 +446,7 @@ const geographiesColumns = computed((): TableColumn[] => [
 
 const geographiesTableReport = computed((): TableReport => ({
   columns: geographiesColumns.value,
-  data: visibleEntries.value.map((entry) => {
-    const ratio = entryRatio(entry)
-    return {
-      geoid: entry.geoid,
-      name: entry.name || '',
-      geometry_area_m2: entry.geometryArea,
-      intersection_area_m2: entry.intersectionArea,
-      intersection_pct: ratio,
-      ...(geographiesApportioned.value
-        ? deriveApportionedRow(entry.values, ratio)
-        : deriveCensusRow(entry.values)),
-    }
-  }),
+  data: visibleEntries.value.map(entry => censusEntryRow(entry, geographiesApportioned.value)),
 }))
 
 // Union across all entries so the column list stays stable when individual
@@ -611,7 +592,7 @@ const inspectorApportioned = computed(() => {
       ]),
     ],
     data: props.entries.map((g) => {
-      const fraction = entryRatio(g)
+      const fraction = censusEntryRatio(g)
       const row: Record<string, string | number | null> = { geoid: g.geoid, fraction }
       for (const k of sourceKeys) {
         const raw = g.values[k]

@@ -5,6 +5,7 @@ import {
   censusApportionGeometry,
   censusApportionRatio,
   censusClip,
+  deriveApportionedColumn,
   deriveApportionedRow,
   formatAcsDatasetLabel,
   formatArea,
@@ -254,6 +255,16 @@ describe('deriveApportionedRow', () => {
     const values: CensusValues = { b19013_001: 65000 }
     const out = deriveApportionedRow(values, 0.5)
     expect(out.median_household_income).toBe(65000)
+  })
+
+  it('has no median when the clip holds none of the geography', () => {
+    const values: CensusValues = { b01003_001: 1000, b02001_002: 600, b19013_001: 65000 }
+    const out = deriveApportionedRow(values, 0)
+    expect(out.total_population).toBe(0)
+    // Ratio columns come out 0/0, and the median goes with them.
+    expect(out.pct_people_of_color).toBeNull()
+    expect(out.median_household_income).toBeNull()
+    expect(deriveApportionedColumn(values, 0, 'median_household_income')).toBeNull()
   })
 })
 
