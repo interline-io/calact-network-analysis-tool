@@ -7,9 +7,9 @@ import {
   type WeekdayMode,
 } from '~~/src/core'
 import { FARE_CATEGORIES, type FareCategory } from '~~/src/tl'
-import { useUrlQuery } from './useUrlQuery'
+import type { QuerySource } from './pendingQuery'
 
-interface ScenarioFilters {
+export interface ScenarioFilters {
   startTime: WritableComputedRef<Date | undefined>
   endTime: WritableComputedRef<Date | undefined>
   selectedWeekdayMode: WritableComputedRef<WeekdayMode | undefined>
@@ -38,9 +38,9 @@ interface ScenarioFilters {
   setTimeRange: (start: Date | undefined, end: Date | undefined) => void
 }
 
-// URL-backed post-fetch filters.
-export function useScenarioFilters (): ScenarioFilters {
-  const { query, setQuery, getArrayParam, setArrayParam } = useUrlQuery()
+// Post-fetch filters, kept in a query.
+export function createScenarioFilters (source: QuerySource): ScenarioFilters {
+  const { query, setQuery, getArrayParam, setArrayParam } = source
 
   const startTime = computed<Date | undefined>({
     get: () => parseTime(query.value.startTime?.toString()),

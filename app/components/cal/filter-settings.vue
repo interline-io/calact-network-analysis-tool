@@ -24,5 +24,11 @@
 </template>
 
 <script setup lang="ts">
-const { unitSystem } = useScenarioDisplay()
+import type { ScenarioParams } from '~/composables/scenarioParams'
+
+const props = defineProps<{
+  scenarioParams: ScenarioParams
+}>()
+
+const { unitSystem } = props.scenarioParams.display
 </script>

@@ -7,7 +7,6 @@ import { ref, shallowRef, type MaybeRefOrGetter, type Ref, type ShallowRef } fro
 import { useScenarioStream, type UseScenarioStreamReturn } from './useScenarioStream'
 import type { FetchMode } from './useOpenStream'
 import { useToastNotification } from './useToastNotification'
-import { useScenarioInputs } from './useScenarioInputs'
 import {
   WSDOTReportDataReceiver,
   type WSDOTLevelGeometryConfig,
@@ -25,6 +24,8 @@ export interface UseWsdotReportDeps {
   // Report-specific config fields layered over the browse config.
   configExtras?: Partial<WSDOTReportConfig>
   successToast: string
+  // Called as the report starts running, once its config passes validation.
+  onStart: () => void
   // Runs once the report is rebuilt on completion, for reports derived on top.
   onComplete?: (data: ScenarioData, report: WSDOTReport) => void
   fetchMode: MaybeRefOrGetter<FetchMode>
@@ -45,7 +46,6 @@ export interface UseWsdotReportReturn extends Pick<UseScenarioStreamReturn,
 
 export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn {
   const stream = useScenarioStream(deps.fetchMode)
-  const { pinScenarioInputs } = useScenarioInputs()
   const wsdotReport = shallowRef<WSDOTReport>()
   // Kept past the run so the overlay's outlines stream into the report it
   // built rather than replacing it.
@@ -65,8 +65,7 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
       useToastNotification().showToast('Please provide a bounding box or geography IDs.')
       return false
     }
-    // As for a browse run: the report's link reruns it with the same area and dates.
-    pinScenarioInputs()
+    deps.onStart()
 
     const receiver = new WSDOTReportDataReceiver({
       onProgress: (progress: ScenarioProgress) => {

@@ -21,6 +21,11 @@
         :open="legendOpen"
         :style-data="styleData"
         :has-data="hasData"
+        :data-display-mode="dataDisplayMode"
+        :hide-unmarked="hideUnmarked"
+        :is-all-day-mode="isAllDayMode"
+        :unit-system="unitSystem"
+        :geom-source="geomSource"
         :display-edit-bbox-mode="displayEditBboxMode"
         :show-bbox="showBbox"
         :has-boundary="!!props.queryPolygon || props.censusGeographiesSelected.length > 0"
@@ -28,6 +33,7 @@
         :flex-color-by="flexColorBy"
         :flex-style-data="flexStyleData"
         :has-flex-data="hasFlexData"
+        :show-agg-areas="showAggAreas"
         :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
         :choropleth-classification="props.choroplethClassification"
         :has-cluster-data="hasClusterData"
@@ -58,6 +64,8 @@
       :fit-bounds-key="fitBoundsKey"
       :fit-overlay-key="props.fitOverlayKey"
       :fit-target-features="fitTargetFeatures"
+      :unit-system="unitSystem"
+      :is-all-day-mode="isAllDayMode"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
       @selectable-geo-click="onSelectableGeoClick"
@@ -80,6 +88,7 @@ import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRout
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo, QueryPolygon } from '~~/src/core'
 import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
 import { buildStyleData, clusterDisplayName, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
+import type { ScenarioParams } from '~/composables/scenarioParams'
 
 const emit = defineEmits<{
   setMapExtent: [value: Bbox, userInitiated: boolean]
@@ -97,6 +106,7 @@ const emit = defineEmits<{
 }>()
 
 const props = defineProps<{
+  scenarioParams: ScenarioParams
   displayEditBboxMode?: boolean
   showBbox?: boolean
   censusGeographiesSelected: CensusGeography[]
@@ -124,9 +134,9 @@ const props = defineProps<{
   clearSelectionKey?: number
 }>()
 
-const { dataDisplayMode, hideUnmarked } = useScenarioDisplay()
-const { bbox, geographyIds, geomSource, geomLayer, fixedRouteEnabled } = useScenarioInputs()
-const { flexServicesEnabled, flexColorBy } = useScenarioFilters()
+const { dataDisplayMode, hideUnmarked, showAggAreas, unitSystem, isAllDayMode } = props.scenarioParams.display
+const { bbox, geographyIds, geomSource, geomLayer, fixedRouteEnabled } = props.scenarioParams.inputs
+const { flexServicesEnabled, flexColorBy } = props.scenarioParams.filters
 
 const showShareMenu = ref(false)
 const toggleShareMenu = useToggle(showShareMenu)

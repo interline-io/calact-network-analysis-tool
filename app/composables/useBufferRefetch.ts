@@ -6,8 +6,8 @@
 // supplies the buffer-specific bits (what to watch, the body, how to clear). The
 // shared ScenarioDataReceiver is owned by useScenarioRun and passed in via deps.
 
-import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
+import { STOP_BUFFER_DEFAULT_LAYER } from '~~/src/core'
 import { phaseEnabled, type BufferFetchConfig } from '~~/src/scenario'
 
 // scenarioReceiver is created by useScenarioRun and shared so refetched buffer
@@ -15,31 +15,34 @@ import { phaseEnabled, type BufferFetchConfig } from '~~/src/scenario'
 export type UseBufferRefetchDeps = StreamingRefetchDeps
 
 export function useBufferRefetch (deps: UseBufferRefetchDeps): void {
-  const { stopBufferRadius, stopBufferLayer, geoDatasetName } = useScenarioInputs()
-
   useStreamingRefetch(deps, {
-    watchSources: [stopBufferRadius, stopBufferLayer],
+    watchSources: [
+      () => deps.scenarioConfig.value.stopBufferRadius,
+      () => deps.scenarioConfig.value.stopBufferLayer,
+    ],
     endpoint: 'buffer-geographies',
     loadingMessage: 'Recomputing buffer demographics...',
     clearBeforeFetch: true,
     clearStale: receiver => receiver.clearBufferGeographies(),
     plan: (data, config) => {
+      const radius = config.stopBufferRadius ?? 0
       // Disabling buffers (radius 0) just clears the slice — no server call.
-      if (!(stopBufferRadius.value > 0)) {
+      if (!(radius > 0)) {
         return 'clear'
       }
-      // The phase's own enablement, for the radius now in effect: a fetch
-      // that excluded census or fixed-route data has nothing to recompute.
-      if (!phaseEnabled('buffers', { ...config, stopBufferRadius: stopBufferRadius.value })) {
+      // The phase's own enablement: a fetch that excluded census or
+      // fixed-route data has nothing to recompute.
+      if (!phaseEnabled('buffers', config)) {
         return 'skip'
       }
       const agencyIds = [...new Set(
         data.routes.map(r => r.agency?.id).filter((id): id is number => id != null),
       )]
       const body: BufferFetchConfig = {
-        radius: stopBufferRadius.value,
-        layer: stopBufferLayer.value,
-        geoDatasetName: geoDatasetName.value,
+        radius,
+        // Defaulted as in the scenario run.
+        layer: config.stopBufferLayer || STOP_BUFFER_DEFAULT_LAYER,
+        geoDatasetName: config.geoDatasetName,
         // The predicate above guarantees this is set.
         tableDatasetName: config.tableDatasetName!,
         stopIds: data.stops.map(s => s.id),

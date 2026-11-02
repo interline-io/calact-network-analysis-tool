@@ -8,7 +8,7 @@
 // against the geoids they were saved with. The server takes one kind of area
 // at a time, so the two kinds can't be combined.
 
-import { computed, markRaw, ref, watch } from 'vue'
+import { computed, markRaw, ref, watch, type Ref } from 'vue'
 import {
   isAdminBoundaryDocument,
   isUploadDocument,
@@ -18,7 +18,6 @@ import {
   type QueryPolygon,
 } from '~~/src/core'
 import type { CensusGeography } from '~~/src/tl'
-import { useScenarioInputs } from './useScenarioInputs'
 import { iwaErrorMessage, useSavedGeographies } from './useSavedGeographies'
 import { useUploadedGeography } from './useUploadedGeography'
 
@@ -38,10 +37,19 @@ export type SavedSelectionKind = 'upload' | 'admin_boundary'
 // What keeps chosen saved boundaries from running together
 type SelectionProblem = 'mixed' | 'datasets'
 
-// censusGeographiesSelected is read lazily, as it comes from the geography ids
-// this returns
-export function useQueryGeography (censusGeographiesSelected: () => CensusGeography[]) {
-  const { geomSource, savedGeographies, geographyIds, geoDatasetName } = useScenarioInputs()
+interface UseQueryGeographyDeps {
+  geomSource: Ref<string>
+  savedGeographies: Ref<string[]>
+  geographyIds: Ref<number[]>
+  // Set to a chosen saved boundary set's dataset
+  geoDatasetName: Ref<string>
+  // Read lazily, as it comes from the geography ids this returns
+  censusGeographiesSelected: () => CensusGeography[]
+}
+
+// The query area a scenario's inputs describe.
+export function useQueryGeography (deps: UseQueryGeographyDeps) {
+  const { geomSource, savedGeographies, geographyIds, geoDatasetName, censusGeographiesSelected } = deps
   const { upload } = useUploadedGeography()
   const { access, geographies, loadAccess, get } = useSavedGeographies()
 

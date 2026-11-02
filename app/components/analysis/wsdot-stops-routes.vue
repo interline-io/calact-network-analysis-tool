@@ -137,6 +137,12 @@ const scenarioData = defineModel<ScenarioData>('scenarioData')
 // enough statewide that deep proxying every row would be real overhead.
 const wsdotStopsRoutesReport = shallowRef<WSDOTStopsRoutesReport>()
 
+const emit = defineEmits<{
+  cancel: []
+  // The report started running.
+  run: []
+}>()
+
 // Report scaffolding shared with the frequency report: config, stream state,
 // receiver, and the run lifecycle around the loading modal. This report is
 // derived on top of the base WSDOT report once it completes.
@@ -156,14 +162,11 @@ const {
   scenarioData,
   fetchMode: () => props.fetchMode,
   successToast: 'WSDOT stops and routes analysis completed successfully!',
+  onStart: () => emit('run'),
   onComplete: (data, report) => {
     wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(data, report)
   },
 })
-
-const emit = defineEmits<{
-  cancel: []
-}>()
 
 // Track if results are loaded, to collapse the about message, also for navigation guard
 const { setHasResults } = useAnalysisResults()

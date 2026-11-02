@@ -126,17 +126,19 @@ import {
   routeTypeNames,
   routeTypeIcons,
 } from '~~/src/core'
+import type { ScenarioParams } from '~/composables/scenarioParams'
 
 const props = defineProps<{
+  scenarioParams: ScenarioParams
   agencyFilterItems?: AgencyFilterItem[]
 }>()
 
-const { fixedRouteEnabled } = useScenarioInputs()
+const { fixedRouteEnabled } = props.scenarioParams.inputs
 const {
   selectedRouteTypes,
   selectedAgencies,
   flexServicesEnabled,
-} = useScenarioFilters()
+} = props.scenarioParams.filters
 
 ///////////////////
 // Agency selector

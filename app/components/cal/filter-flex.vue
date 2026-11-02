@@ -67,6 +67,11 @@ import {
   flexRiderEligibilityDescription,
   flexRiderEligibilityTypes,
 } from '~~/src/core'
+import type { ScenarioParams } from '~/composables/scenarioParams'
+
+const props = defineProps<{
+  scenarioParams: ScenarioParams
+}>()
 
 const {
   flexServicesEnabled,
@@ -74,7 +79,7 @@ const {
   flexAreaTypesSelected,
   flexRiderEligibility,
   flexColorBy,
-} = useScenarioFilters()
+} = props.scenarioParams.filters
 </script>
 
 <style scoped lang="scss">

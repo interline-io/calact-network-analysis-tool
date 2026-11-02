@@ -257,25 +257,27 @@ import {
   STOP_VISITS_DEFAULT_TOTAL,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
+import type { ScenarioParams } from '~/composables/scenarioParams'
 
 const props = defineProps<{
+  scenarioParams: ScenarioParams
   scenarioFilterResult?: ScenarioFilterResult
   censusGeographyLayerOptions?: { label: string, value: string }[]
 }>()
 
-const { dataDisplayMode } = useScenarioDisplay()
+const { dataDisplayMode } = props.scenarioParams.display
 const {
   stopBufferRadius,
   stopBufferLayer,
   clusterDistance,
-} = useScenarioInputs()
+} = props.scenarioParams.inputs
 const {
   frequencyUnder,
   frequencyOver,
   stopVisitsUnder,
   stopVisitsOver,
   clusterMaxTransferMinutes,
-} = useScenarioFilters()
+} = props.scenarioParams.filters
 
 // Emptying a field to retype it keeps the current value (see keepValueWhenEmptied).
 const setFrequencyUnder = keepValueWhenEmptied(frequencyUnder)

@@ -3,17 +3,14 @@
 // stale the moment the selector moves. Runs alongside useAggregateRefetch,
 // which covers the ACS half of the same change.
 
-import { useScenarioDisplay } from './useScenarioDisplay'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
 import { phaseEnabled, type StopCensusPhaseConfig } from '~~/src/scenario'
 
 export type UseStopCensusRefetchDeps = StreamingRefetchDeps
 
 export function useStopCensusRefetch (deps: UseStopCensusRefetchDeps): void {
-  const { aggregateLayer } = useScenarioDisplay()
-
   useStreamingRefetch(deps, {
-    watchSources: [aggregateLayer],
+    watchSources: [() => deps.scenarioConfig.value.aggregateLayer],
     endpoint: 'scenario/stop-census',
     loadingMessage: 'Reloading stop census areas...',
     // Every consumer filters on layer_name, so keeping the old layer's entries

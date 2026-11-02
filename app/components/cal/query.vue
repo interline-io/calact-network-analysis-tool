@@ -414,6 +414,7 @@ import { useFetchMode } from '~/composables/useFetchMode'
 import { useUploadedGeography } from '~/composables/useUploadedGeography'
 import type { SavedGeographyAccess } from '~/composables/useSavedGeographies'
 import type { QueryGeographyMessage, SavedSelectionKind } from '~/composables/useQueryGeography'
+import type { ScenarioParams } from '~/composables/scenarioParams'
 import CalGeographyUpload from '~/components/cal/geography-upload.vue'
 import CalSavedGeographyPicker from '~/components/cal/saved-geography-picker.vue'
 import CalSaveGeographyModal from '~/components/cal/save-geography-modal.vue'
@@ -429,6 +430,7 @@ const emit = defineEmits([
 ])
 
 const props = defineProps<{
+  scenarioParams: ScenarioParams
   censusGeographyLayerOptions: { label: string, value: string }[]
   viewportGeographies?: CensusGeography[]
   viewportGeographiesLoading?: boolean
@@ -469,7 +471,7 @@ const {
   includeCensus,
   fvids,
   applyDatesAndFvids,
-} = useScenarioInputs()
+} = props.scenarioParams.inputs
 const { upload, clear: clearUpload } = useUploadedGeography()
 // Adding a file with saved boundaries already chosen, before it's read
 const addingFile = ref(false)
@@ -484,7 +486,7 @@ const fvOverrideCount = computed(() => {
   const parsed = parseFvids(fvids.value)
   return parsed.picks.size + parsed.excluded.size
 })
-const { aggregateLayer } = useScenarioDisplay()
+const { aggregateLayer } = props.scenarioParams.display
 const debugMenu = useDebugMenu()
 const fetchMode = useFetchMode()
 const geomSearch = ref('')

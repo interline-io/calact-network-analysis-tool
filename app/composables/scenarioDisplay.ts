@@ -6,14 +6,14 @@ import {
   type DataDisplayMode,
   type UnitSystem,
 } from '~~/src/core'
-import { useUrlQuery } from './useUrlQuery'
+import type { QuerySource } from './pendingQuery'
 
 // The overlay is off until asked for, so when it is asked for, answer the
 // question people actually have: what the transit service reaches. The less
 // clipped modes stay available for context.
 const AGG_CLIP_MODE_DEFAULT: AggClipMode = 'buffer'
 
-interface ScenarioDisplay {
+export interface ScenarioDisplay {
   showAggAreas: WritableComputedRef<boolean>
   aggClipMode: WritableComputedRef<AggClipMode>
   showStopBuffer: WritableComputedRef<boolean>
@@ -29,11 +29,9 @@ interface ScenarioDisplay {
   isAllDayMode: ComputedRef<boolean>
 }
 
-// URL-backed display state shared between tne.vue, cal-filter, cal-map and
-// their descendants. Each consumer calls this directly instead of receiving
-// values as props, so adding a new flag is a one-file change.
-export function useScenarioDisplay (): ScenarioDisplay {
-  const { query, setQuery } = useUrlQuery()
+// How the map and reports display a scenario, kept in a query.
+export function createScenarioDisplay (source: QuerySource): ScenarioDisplay {
+  const { query, setQuery } = source
 
   const showAggAreas = computed<boolean>({
     get: () => query.value.showAggAreas?.toString() === 'true',

@@ -1,13 +1,9 @@
 // Derives the GeoJSON feature collections for flex (demand-responsive) service
 // areas — both the map-display set (styled, respects the map toggles) and the
 // Reports-tab set (the areas satisfying the filters). All inputs are plain
-// data: the raw/filtered scenario results are passed in by the container, and
-// the URL-backed filter/display state is read from the useScenario* composables
-// (callable anywhere). No fetching or Apollo access happens here.
+// data passed in by the container; no fetching or Apollo access happens here.
 
 import { computed, type Ref, type ComputedRef } from 'vue'
-import { useScenarioFilters } from './useScenarioFilters'
-import { useScenarioDisplay } from './useScenarioDisplay'
 import { useFlexAreaFormatting } from './useFlexAreaFormatting'
 import { getFlexAdvanceNotice, getFlexAgencyName, markFlexAreas } from '~~/src/tl'
 import { type Feature, createCategoryColorScale, flexColors, dateToSeconds } from '~~/src/core'
@@ -18,6 +14,14 @@ interface UseFlexDisplayFeaturesDeps {
   scenarioData: Ref<ScenarioData | undefined>
   // Agency-filtered results — the source for the per-area marked status.
   scenarioFilterResult: Ref<ScenarioFilterResult | undefined>
+  startTime: Ref<Date | undefined>
+  endTime: Ref<Date | undefined>
+  flexServicesEnabled: Ref<boolean | undefined>
+  flexAdvanceNotice: Ref<string[] | undefined>
+  flexAreaTypesSelected: Ref<string[] | undefined>
+  flexRiderEligibility: Ref<string[] | undefined>
+  flexColorBy: Ref<string | undefined>
+  hideUnmarked: Ref<boolean>
 }
 
 export interface UseFlexDisplayFeaturesReturn {
@@ -37,8 +41,8 @@ export function useFlexDisplayFeatures (deps: UseFlexDisplayFeaturesDeps): UseFl
     flexAreaTypesSelected,
     flexRiderEligibility,
     flexColorBy,
-  } = useScenarioFilters()
-  const { hideUnmarked } = useScenarioDisplay()
+    hideUnmarked,
+  } = deps
   const { buildFlexAreaProperties } = useFlexAreaFormatting()
 
   // Color scale spans every agency in the raw stream (not the filtered set), so

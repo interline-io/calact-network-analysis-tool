@@ -3,7 +3,6 @@
 // the scenario untouched. The transfer-time prune is client-side and needs no
 // refetch. Streaming/abort/debounce machinery lives in useStreamingRefetch.
 
-import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
 import { queryArea } from '~~/src/core'
 import { phaseEnabled, type FeedVersionRef, type StopClusterFetchConfig } from '~~/src/scenario'
@@ -13,24 +12,22 @@ import { phaseEnabled, type FeedVersionRef, type StopClusterFetchConfig } from '
 export type UseClusterRefetchDeps = StreamingRefetchDeps
 
 export function useClusterRefetch (deps: UseClusterRefetchDeps): void {
-  const { clusterDistance } = useScenarioInputs()
-
   useStreamingRefetch(deps, {
-    watchSources: [clusterDistance],
+    watchSources: [() => deps.scenarioConfig.value.stopClusterDistance],
     endpoint: 'stop-clusters',
     loadingMessage: 'Recomputing stop clusters...',
     // A failed recompute would otherwise strand hubs computed at the old distance.
     clearOnError: true,
     clearStale: receiver => receiver.clearStopClusters(),
     plan: (data, config) => {
+      const distance = config.stopClusterDistance ?? 0
       // Disabling clustering (distance 0) just clears the slice — no server call.
-      if (!(clusterDistance.value > 0)) {
+      if (!(distance > 0)) {
         return 'clear'
       }
-      // The phase's own enablement, for the distance now in effect: without
-      // fixed-route data no stops are shown, so clusters would decorate a map
-      // with nothing under them.
-      if (!phaseEnabled('stop-clusters', { ...config, stopClusterDistance: clusterDistance.value })) {
+      // The phase's own enablement: without fixed-route data no stops are
+      // shown, so clusters would decorate a map with nothing under them.
+      if (!phaseEnabled('stop-clusters', config)) {
         return 'skip'
       }
       const feedVersions: FeedVersionRef[] = data.feedVersions.map(fv => ({
@@ -41,7 +38,7 @@ export function useClusterRefetch (deps: UseClusterRefetchDeps): void {
         feedVersions,
         ...queryArea(config),
         geoDatasetName: config.geoDatasetName,
-        maxDistanceMeters: clusterDistance.value,
+        maxDistanceMeters: distance,
         stopLimit: config.stopLimit,
       }
       return body

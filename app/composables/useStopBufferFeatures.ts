@@ -1,12 +1,8 @@
 // Map features for the stop buffer overlay: the area within the stop
-// statistical radius of each marked route's stops, unioned server-side. The
-// filtered scenario result is passed in by the container; the URL-backed
-// radius and display toggle are read from the useScenario* composables.
+// statistical radius of each marked route's stops, unioned server-side.
 
 import { computed, type Ref, type ComputedRef } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
-import { useScenarioDisplay } from './useScenarioDisplay'
-import { useScenarioInputs } from './useScenarioInputs'
 import { routeStopBufferQuery, type RouteStopBufferResponse } from '~~/src/tl'
 import type { Feature } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
@@ -17,6 +13,8 @@ const ROUTE_LIMIT = 1000
 
 interface UseStopBufferFeaturesDeps {
   scenarioFilterResult: Ref<ScenarioFilterResult | undefined>
+  showStopBuffer: Ref<boolean>
+  stopBufferRadius: Ref<number>
 }
 
 export interface UseStopBufferFeaturesReturn {
@@ -25,8 +23,7 @@ export interface UseStopBufferFeaturesReturn {
 }
 
 export function useStopBufferFeatures (deps: UseStopBufferFeaturesDeps): UseStopBufferFeaturesReturn {
-  const { showStopBuffer } = useScenarioDisplay()
-  const { stopBufferRadius } = useScenarioInputs()
+  const { showStopBuffer, stopBufferRadius } = deps
 
   // Marked only, so the outlines trace what the map is drawing. Clamped to
   // the server's cap: sending more ids returns the same page, and which

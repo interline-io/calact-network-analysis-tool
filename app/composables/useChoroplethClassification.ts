@@ -10,24 +10,30 @@ import {
   getChoroplethColor,
   isElementDensityEligible,
   pickChoroplethValue,
+  type AggClipMode,
   type CensusFormat,
   type CensusGeographyData,
   type ChoroplethClassification,
   type Feature,
+  type UnitSystem,
 } from '~~/src/core'
 import type { CensusDataset, CensusGeography } from '~~/src/tl'
-import { useScenarioDisplay } from './useScenarioDisplay'
 
 interface UseChoroplethClassificationInput {
   choroplethAggregateData: ComputedRef<Array<Record<string, unknown>>>
   censusGeographies: ComputedRef<Map<string, CensusGeographyData> | undefined>
   choroplethGeoResult: Ref<{ census_datasets: CensusDataset[] } | null | undefined>
   selectedAggregationGeoid: Ref<string | null>
+  showAggAreas: Ref<boolean>
+  aggClipMode: Ref<AggClipMode>
+  choroplethElement: Ref<string>
+  shadeByDensity: Ref<boolean>
+  unitSystem: Ref<UnitSystem>
 }
 
 // Wires the pure choropleth math from `src/core/choropleth.ts` to Vue refs.
 export function useChoroplethClassification (input: UseChoroplethClassificationInput) {
-  const { showAggAreas, aggClipMode, choroplethElement, shadeByDensity, unitSystem } = useScenarioDisplay()
+  const { showAggAreas, aggClipMode, choroplethElement, shadeByDensity, unitSystem } = input
 
   const isDensityEligible = computed(() => isElementDensityEligible(choroplethElement.value))
 

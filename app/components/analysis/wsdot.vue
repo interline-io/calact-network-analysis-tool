@@ -162,6 +162,12 @@ const props = defineProps<{
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
 const scenarioData = shallowRef<ScenarioData>()
 
+const emit = defineEmits<{
+  cancel: []
+  // The report started running.
+  run: []
+}>()
+
 // Report scaffolding shared with the stops-and-routes report: config, stream
 // state, receiver, and the run lifecycle around the loading modal.
 const {
@@ -181,6 +187,7 @@ const {
   scenarioData,
   fetchMode: () => props.fetchMode,
   successToast: 'WSDOT analysis completed successfully!',
+  onStart: () => emit('run'),
   configExtras: {
     // Route shapes are 98% of the routes query and this report's map draws
     // stops, not lines. The stops-and-routes report, which exports them,
@@ -200,10 +207,6 @@ watch(showStopBuffers, (show) => {
     loadLevelGeometry()
   }
 })
-
-const emit = defineEmits<{
-  cancel: []
-}>()
 
 // Track if results are loaded, to collapse the about message, also for navigation guard
 const { setHasResults } = useAnalysisResults()
