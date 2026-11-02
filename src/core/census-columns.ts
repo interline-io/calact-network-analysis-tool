@@ -459,7 +459,8 @@ export function deriveCensusRow (values: CensusValues): Record<string, number | 
 
 // Counts are scaled by `intersectionRatio`; ratio columns are unchanged
 // (cancels out); `NON_ADDITIVE_CENSUS_COLUMNS` (medians) read through as
-// the full-geography value.
+// the full-geography value. At a ratio of 0 the clip holds no one, so ratio
+// columns come out null (0/0) and medians do too.
 export function deriveApportionedRow (
   values: CensusValues,
   intersectionRatio: number,
@@ -472,9 +473,11 @@ export function deriveApportionedRow (
   }
   const out: Record<string, number | null> = {}
   for (const col of CENSUS_COLUMNS) {
-    out[col.id] = NON_ADDITIVE_CENSUS_COLUMNS.has(col.id)
-      ? col.derive(values)
-      : col.derive(scaled)
+    if (NON_ADDITIVE_CENSUS_COLUMNS.has(col.id)) {
+      out[col.id] = intersectionRatio > 0 ? col.derive(values) : null
+    } else {
+      out[col.id] = col.derive(scaled)
+    }
   }
   return out
 }
@@ -495,7 +498,7 @@ export function deriveApportionedColumn (
     return null
   }
   if (NON_ADDITIVE_CENSUS_COLUMNS.has(columnId)) {
-    return col.derive(values)
+    return intersectionRatio > 0 ? col.derive(values) : null
   }
   let keys = SOURCE_KEYS_CACHE.get(columnId)
   if (!keys) {

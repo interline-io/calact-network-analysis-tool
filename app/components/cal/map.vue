@@ -78,7 +78,7 @@ import { ref, computed, toRaw, watch, toRef } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo, QueryPolygon } from '~~/src/core'
-import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
+import { AGG_CLIP_MODE_OPTIONS, bboxString, categoricalColors, censusEntryRow, censusGeographyMapToEntries, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
 import { buildStyleData, clusterDisplayName, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
 
 const emit = defineEmits<{
@@ -124,7 +124,7 @@ const props = defineProps<{
   clearSelectionKey?: number
 }>()
 
-const { dataDisplayMode, hideUnmarked } = useScenarioDisplay()
+const { dataDisplayMode, hideUnmarked, aggClipMode } = useScenarioDisplay()
 const { bbox, geographyIds, geomSource, geomLayer, fixedRouteEnabled } = useScenarioInputs()
 const { flexServicesEnabled, flexColorBy } = useScenarioFilters()
 
@@ -741,7 +741,7 @@ const displayFeatures = computed((): Feature[] => {
 // Features for export: the marked features from the layers currently
 // displayed on the map (fixedRouteEnabled / flexServicesEnabled), with the
 // csv column data merged in.
-const exportFeatures = computed((): Feature[] => {
+const serviceExportFeatures = computed((): Feature[] => {
   const bgColor = '#aaa'
   const bgOpacity = 0.4
   const styleRules = exportStyleData.value || []
@@ -812,6 +812,37 @@ const exportFeatures = computed((): Feature[] => {
 
   return forExport
 })
+
+// The aggregation areas as drawn, each with its geography's demographics
+// scaled to the clip. Kept apart from the layers above, so selecting an area
+// doesn't rebuild every stop and route row.
+const aggregationExportFeatures = computed((): Feature[] => {
+  const mode = aggClipMode.value
+  const clippingMode = AGG_CLIP_MODE_OPTIONS.find(o => o.value === mode)?.label
+  const entries = new Map(censusGeographyMapToEntries(props.scenarioFilterResult?.censusGeographies, mode).map(e => [e.geoid, e]))
+  return (props.choroplethFeatures || []).map((f) => {
+    const p = f.properties
+    const entry = entries.get(p.geoid)
+    return {
+      type: 'Feature',
+      id: f.id,
+      geometry: f.geometry,
+      properties: {
+        'fill': p.fill,
+        'fill-opacity': p['fill-opacity'],
+        'clipping_mode': clippingMode,
+        ...(entry ? censusEntryRow(entry, true) : { geoid: p.geoid, name: p.name }),
+        'stops_count': p.stops_count,
+        'routes_count': p.routes_count,
+        'agencies_count': p.agencies_count,
+        'visit_count_total': p.visit_count_total,
+      },
+    }
+  })
+})
+
+// The GeoJSON downloads: the service layers, then the aggregation areas.
+const exportFeatures = computed((): Feature[] => [...serviceExportFeatures.value, ...aggregationExportFeatures.value])
 
 watch(displayFeatures, () => {
   emit('setDisplayFeatures', displayFeatures.value)

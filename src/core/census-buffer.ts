@@ -4,6 +4,8 @@ import {
   NON_ADDITIVE_CENSUS_COLUMNS,
   censusApportionArea,
   censusApportionRatio,
+  deriveApportionedRow,
+  deriveCensusRow,
 } from './census-columns'
 
 // FIPS-prefix-rollup-safe layers, coarse→fine: a finer geoid's FIPS digits start with
@@ -51,6 +53,29 @@ export function censusGeographyMapToEntries (
     })
   }
   return out
+}
+
+// An entry's intersection as a share of its geography.
+export function censusEntryRatio (entry: CensusGeographyEntry): number {
+  if (entry.intersectionRatio != null) {
+    return entry.intersectionRatio
+  }
+  return entry.geometryArea > 0 ? entry.intersectionArea / entry.geometryArea : 0
+}
+
+// One geography's areas and demographics, as the census details table and the
+// map's GeoJSON export list them. With `scaled`, counts cover only the
+// intersection.
+export function censusEntryRow (entry: CensusGeographyEntry, scaled: boolean): Record<string, string | number | null> {
+  const ratio = censusEntryRatio(entry)
+  return {
+    geoid: entry.geoid,
+    name: entry.name || '',
+    geometry_area_m2: entry.geometryArea,
+    intersection_area_m2: entry.intersectionArea,
+    intersection_pct: ratio,
+    ...(scaled ? deriveApportionedRow(entry.values, ratio) : deriveCensusRow(entry.values)),
+  }
 }
 
 export function apportionBuffer (intersections: CensusGeographyEntry[]): {
