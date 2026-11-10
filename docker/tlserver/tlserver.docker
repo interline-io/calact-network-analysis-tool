@@ -6,7 +6,7 @@ FROM golang:1.26-bookworm AS build
 # duplicate route collapse reads (interline-io/transitland-lib#846). Until that
 # merges this is its branch's commit; move it to the merge commit or the next
 # release once it lands.
-ARG TRANSITLAND_REF=54d4392619a93c9ddf5b9671ce3454fffce83077
+ARG TRANSITLAND_REF=0d6b952c0ffd3d04f75db01840fe1eb7aa625485
 # Built from a checkout rather than `go install pkg@version`: transitland-lib's
 # go.mod carries a replace directive, which go install rejects unless the module
 # is the main module. CGO stays on — without it build constraints exclude the
