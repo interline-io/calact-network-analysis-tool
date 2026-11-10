@@ -404,8 +404,14 @@ export function applyClusterTransferTime (
 // collapse has removed stops served only by hidden copies and dropped those
 // copies from the rest of the stops' route_stops. Agencies and routes are
 // recounted from what remains, so a hub that only looked cross-agency because
-// one route was published in two feeds goes, as the server would have dropped
-// it. The anchor stays when it remains; otherwise the first member takes over.
+// one route was published in two feeds goes. The anchor stays when it remains;
+// otherwise the first member takes over.
+//
+// This filters the server's members rather than rebuilding the clusters, which
+// would need the neighbor lists the cluster phase does not keep. The server
+// picks one member per agency, so where a removed member was picked over
+// another stop of its agency in reach, the cluster loses that agency here even
+// though a rebuilt one would keep it through the other stop.
 export function restrictClustersToStops (clusters: StopCluster[] | undefined, stops: Stop[]): StopCluster[] | undefined {
   if (!clusters?.length) {
     return clusters

@@ -54,11 +54,13 @@
  *
  * 4. Agencies are derived from the filtered stops and routes
  *
- * Before any of this, copies of a route published in more than one feed are
- * hidden (duplicate-routes.ts), unless collapseDuplicateRoutes is false. Hidden
- * copies are removed rather than unmarked: they leave the routes, the stops
- * they alone serve, the remaining stops' route_stops and the departures, so
- * counts, reports, the map, exports and stop clusters all see one copy.
+ * Between steps 1 and 2, copies of a route published in more than one feed are
+ * hidden (duplicate-routes.ts), unless collapseDuplicateRoutes is false. The
+ * copy kept is one that passes the route filters, so this runs after routes are
+ * marked. Hidden copies are removed rather than unmarked: they leave the
+ * routes, the stops they alone serve, the remaining stops' route_stops and the
+ * departures, so counts, reports, the map, exports and stop clusters all see
+ * one copy.
  */
 
 import { format } from 'date-fns'
@@ -83,7 +85,7 @@ import {
   restrictClustersToStops,
   type StopCluster,
 } from './phases/stop-clusters'
-import { collapseDuplicateRoutes, type CollapsedRouteSummary } from './duplicate-routes'
+import { collapseDuplicateRoutes, duplicateDetectionAvailable, type CollapsedRouteSummary } from './duplicate-routes'
 import { stopVisits } from './stop-visits'
 import {
   type Weekday,
@@ -101,7 +103,9 @@ import type {
   AgencyGql,
   FeedVersion,
   Route,
+  RouteGql,
   Stop,
+  StopGql,
   StopDepartureCache,
   StopVisitCounts,
   FlexAreaFeature,
@@ -643,6 +647,12 @@ export interface ScenarioFilterResult {
   // Route copies hidden as duplicates of a route kept from another feed.
   // Empty when the collapse is off or found nothing.
   collapsedRoutes: CollapsedRouteSummary[]
+  // Whether the routes carry Transitland's comparison of copies, so the
+  // collapse could look for any; false before routes load.
+  duplicateDetectionAvailable: boolean
+  // The stops and routes as loaded, before the collapse hides any copies, for
+  // whatever must not change when copies are hidden: the map's agency colors.
+  loaded: { stops: StopGql[], routes: RouteGql[] }
 }
 
 export function applyScenarioResultFilter (
@@ -650,15 +660,10 @@ export function applyScenarioResultFilter (
   config: ScenarioConfig,
   filter: ScenarioFilter
 ): ScenarioFilterResult {
-  const routeIndex = RouteDepartureIndexClass.fromCache(data.stopDepartureCache)
+  // Every route's departures, for the route stats. Hidden copies' stats are
+  // computed and dropped, which leaves each kept route's own unchanged.
+  const allRouteIndex = RouteDepartureIndexClass.fromCache(data.stopDepartureCache)
   const selectedDateRangeValue = getSelectedDateRange(config)
-  // Hide duplicate route copies before anything reads the routes, stops or
-  // departures. The route index keeps the hidden copies' departures, but nothing
-  // asks it for a route that is no longer in the result.
-  const collapse = filter.collapseDuplicateRoutes === false
-    ? undefined
-    : collapseDuplicateRoutes(data, routeIndex, selectedDateRangeValue)
-  const sdCache = collapse?.stopDepartureCache ?? data.stopDepartureCache
   const selectedWeekdayModeValue = filter.selectedWeekdayMode
   const selectedDaysValue = filter.selectedWeekdays
   const selectedRouteTypesValue = filter.selectedRouteTypes
@@ -682,7 +687,7 @@ export function applyScenarioResultFilter (
   const stopFiltersActive = stopVisitsUnderValue != null || stopVisitsOverValue != null
 
   // Apply route filters
-  const routeFeatures = (collapse?.routes ?? data.routes).map((routeGql): Route => {
+  const allRouteFeatures = data.routes.map((routeGql): Route => {
     const fare = data.routeFares?.get(routeGql.id)
     const route: Route = {
       ...routeGql,
@@ -715,11 +720,22 @@ export function applyScenarioResultFilter (
       selectedAgenciesValue,
       frequencyUnderValue,
       frequencyOverValue,
-      routeIndex,
+      allRouteIndex,
       fareFilterValue,
     )
     return route
   })
+
+  // Hide duplicate route copies once routes are marked, since the copy kept is
+  // one that passes the current filters, and before stops, departures, agencies
+  // and clusters are derived from what remains.
+  const markedById = new Map(allRouteFeatures.map(r => [r.id, r.marked]))
+  const collapse = filter.collapseDuplicateRoutes === false
+    ? undefined
+    : collapseDuplicateRoutes(data, id => markedById.get(id) ?? false)
+  const routeFeatures = collapse ? allRouteFeatures.filter(r => !collapse.collapsed.has(r.id)) : allRouteFeatures
+  const sdCache = collapse?.stopDepartureCache ?? data.stopDepartureCache
+  const routeIndex = collapse?.routeIndex ?? allRouteIndex
   const markedRoutes = new Set(routeFeatures.filter(r => r.marked).map(r => r.id))
 
   // Apply stop filters
@@ -876,6 +892,8 @@ export function applyScenarioResultFilter (
     aggregationBufferGeographies: data.aggregationBufferGeographies,
     stopClusters,
     collapsedRoutes: collapse?.summaries ?? [],
+    duplicateDetectionAvailable: duplicateDetectionAvailable(data.routes),
+    loaded: { stops: data.stops, routes: data.routes },
   }
   return result
 }

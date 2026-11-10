@@ -76,7 +76,7 @@
 <script setup lang="ts">
 import { ref, computed, toRaw, watch, toRef } from 'vue'
 import { useToggle } from '@vueuse/core'
-import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
+import { type CensusGeography, type Stop, type StopGql, stopToStopCsv, type Route, type RouteGql, routeToRouteCsv, routesById } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo, QueryPolygon } from '~~/src/core'
 import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
 import { buildStyleData, clusterDisplayName, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
@@ -425,11 +425,10 @@ function stopPopupNames (stop: Stop, name: (route: Route) => string | undefined)
 const routeName = (route: Route): string | undefined => route.route_short_name || route.route_long_name
 const agencyName = (route: Route): string | undefined => route.agency.agency_name
 
-const agencyData = computed((): AgencyData[] => {
-  // Collect agency data from the stop data.
+// Agencies by the stops they serve, most stops first.
+function collectAgencies (stops: StopGql[], lookup: Map<number, RouteGql>): AgencyData[] {
   const data = new Map()
-  const lookup = routeLookup.value
-  for (const stop of props.scenarioFilterResult?.stops || []) {
+  for (const stop of stops) {
     const props = stop
     const route_stops = props.route_stops || []
 
@@ -458,13 +457,21 @@ const agencyData = computed((): AgencyData[] => {
 
   return [...data.values()]
     .sort((a, b) => b.stops.size - a.stops.size) // # stops descending
-})
+}
+
+// The agencies of the stops in the result, for the legend.
+const agencyData = computed((): AgencyData[] => collectAgencies(props.scenarioFilterResult?.stops || [], routeLookup.value))
 
 // Single source of truth for per-agency colors, shared by Agency-mode stop dots
 // (getAgencyMatchers) and the cluster beach-ball wedges so an agency renders the
-// same color in both. Keyed by the numeric agency id clusters carry.
-const agencyColorScale = computed(() =>
-  createCategoryColorScale(agencyData.value.map(a => String(a.numericId)), categoricalColors))
+// same color in both. Keyed by the numeric agency id clusters carry. Ordered
+// from the stops and routes as loaded, before hidden duplicate routes leave the
+// result, so turning the collapse on or off moves no other agency's color.
+const agencyColorScale = computed(() => {
+  const loaded = props.scenarioFilterResult?.loaded
+  const agencies = loaded ? collectAgencies(loaded.stops, routesById(loaded.routes)) : agencyData.value
+  return createCategoryColorScale(agencies.map(a => String(a.numericId)), categoricalColors)
+})
 
 // Matcher rules color stops/routes by the active data-display mode. The pure
 // builder (and the Matcher type) live in src/scenario/map-style.ts.

@@ -20,12 +20,12 @@
         <li v-for="c of collapsedRoutes" :key="c.route.id">
           <strong>{{ c.route.agencyName }}: {{ c.route.name }}</strong>
           from <code>{{ c.route.feedOnestopId }}</code>,
-          {{ relationshipLabels[c.relationship] }}
+          {{ tripsLabel(c) }}
           {{ keptNames(c) }} from <code>{{ c.kept[0]?.feedOnestopId }}</code>
         </li>
       </ul>
     </div>
-    <p v-else-if="collapseDuplicateRoutes && departuresLoaded" class="is-size-7 mb-4">
+    <p v-else-if="collapseDuplicateRoutes && detectionAvailable" class="is-size-7 mb-4">
       None found
     </p>
 
@@ -285,7 +285,7 @@ import {
   STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES,
   STOP_VISITS_DEFAULT_TOTAL,
 } from '~~/src/core'
-import type { CollapsedRouteSummary, DuplicateRouteRelationship, ScenarioFilterResult } from '~~/src/scenario'
+import type { CollapsedRouteSummary, ScenarioFilterResult } from '~~/src/scenario'
 
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
@@ -309,12 +309,18 @@ const {
 
 const collapsedRoutes = computed(() => props.scenarioFilterResult?.collapsedRoutes ?? [])
 
-// Completes "<route> from <feed>, … <kept route> from <feed>".
-const relationshipLabels: Record<DuplicateRouteRelationship, string> = {
-  'same-trips': 'same trips as',
-  'subset': 'all its trips run by',
-  'no-trips': 'no trips on these dates; kept',
+// Completes "<route> from <feed>, … <kept route> from <feed>", with the
+// trips the API matched over the scenario's first week.
+function tripsLabel (c: CollapsedRouteSummary): string {
+  if (c.trips > 0 && c.matchedTrips >= c.trips) {
+    return `all ${c.trips} of its trips also run by`
+  }
+  return `${c.matchedTrips} of its ${c.trips} trips also run by`
 }
+
+// Whether the routes carry Transitland's comparison of copies, so that
+// finding none means none.
+const detectionAvailable = computed(() => props.scenarioFilterResult?.duplicateDetectionAvailable ?? false)
 
 // The kept copies' names, once each: usually one route, sometimes several
 // rows of one route in the kept feed.

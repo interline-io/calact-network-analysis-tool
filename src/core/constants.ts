@@ -349,13 +349,10 @@ export const STOP_CLUSTER_NEAR_MAX_RADIUS = 1000
 // said to be near it.
 export const CLUSTER_NEAR_MIN_FEEDS = 2
 
-// Duplicate route collapse (src/scenario/duplicate-routes.ts). Routes in
-// different feeds that share a route Onestop ID are compared trip by trip: a
-// trip matches when the other copy has a trip starting within this many seconds
-// on the same date, and a copy is hidden when at least this share of its trips
-// match the copy that is kept.
-export const DUPLICATE_ROUTE_START_TOLERANCE_SECONDS = 60
-export const DUPLICATE_ROUTE_TRIP_MATCH_FRACTION = 0.9
+// Duplicate route collapse (src/scenario/duplicate-routes.ts): the most service
+// dates Transitland's Route.similar_routes compares a route's copies on. The
+// routes phase passes the scenario's first this-many dates.
+export const SIMILAR_ROUTE_MAX_DATES = 7
 
 // Seeded when the user ticks a Fixed-Route Services threshold: route frequency
 // (minutes between trips) and stop visits (total visits during the filtered

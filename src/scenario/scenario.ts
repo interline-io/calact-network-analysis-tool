@@ -1,3 +1,4 @@
+import { format } from 'date-fns'
 import {
   type WeekdayMode,
   type RouteType,
@@ -10,6 +11,7 @@ import {
   logMemory,
   type CensusGeographyData,
   STOP_BUFFER_DEFAULT_LAYER,
+  SIMILAR_ROUTE_MAX_DATES,
   queryArea,
   type QueryArea,
 } from '~~/src/core'
@@ -41,6 +43,7 @@ import {
   StopDepartureTuple,
   FlexDepartureTuple,
   SCENARIO_PHASE_ORDER,
+  getSelectedDateRange,
   type FeedVersionRef,
   type FlexPhaseResult,
   type StopsPhaseResult,
@@ -434,6 +437,10 @@ export class ScenarioFetcher {
       ? runRoutesPhase({
           routeIds,
           includeGeometry: this.config.includeRouteGeometry,
+          // The scenario's first week, the most dates the API compares copies on.
+          similarRouteDates: getSelectedDateRange(this.config)
+            .slice(0, SIMILAR_ROUTE_MAX_DATES)
+            .map(d => format(d, 'yyyy-MM-dd')),
         }, this.client, this.emit, { onError })
       : Promise.resolve({ agencyIds: [] as number[] })
     const [, , { agencyIds }] = await Promise.all([departuresPromise, stopCensusPromise, routesPromise])
