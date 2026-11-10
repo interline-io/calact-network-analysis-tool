@@ -400,6 +400,44 @@ export function applyClusterTransferTime (
   return result
 }
 
+// Restrict the proximity clusters to the given stops, after the duplicate route
+// collapse has removed stops served only by hidden copies and dropped those
+// copies from the rest of the stops' route_stops. Agencies and routes are
+// recounted from what remains, so a hub that only looked cross-agency because
+// one route was published in two feeds goes, as the server would have dropped
+// it. The anchor stays when it remains; otherwise the first member takes over.
+export function restrictClustersToStops (clusters: StopCluster[] | undefined, stops: Stop[]): StopCluster[] | undefined {
+  if (!clusters?.length) {
+    return clusters
+  }
+  const stopById = new Map<number, Stop>(stops.map(s => [s.id, s]))
+  const result: StopCluster[] = []
+  for (const cluster of clusters) {
+    const memberStopIds = cluster.memberStopIds.filter(id => stopById.has(id))
+    if (memberStopIds.length < MIN_CLUSTER_MEMBERS) {
+      continue
+    }
+    const agencyIds = new Set<number>()
+    const routeIds = new Set<number>()
+    for (const id of memberStopIds) {
+      const meta = stopRouteAgencyIds(stopById.get(id)!.route_stops)
+      meta.agencyIds.forEach(a => agencyIds.add(a))
+      meta.routeIds.forEach(r => routeIds.add(r))
+    }
+    if (agencyIds.size < 2) {
+      continue
+    }
+    result.push({
+      ...cluster,
+      anchorStopId: memberStopIds.includes(cluster.anchorStopId) ? cluster.anchorStopId : memberStopIds[0]!,
+      memberStopIds,
+      agencyIds: [...agencyIds].sort((a, b) => a - b),
+      routeIds: [...routeIds].sort((a, b) => a - b),
+    })
+  }
+  return result
+}
+
 // Build the temporal-prune inputs (per-stop departure seconds + agency/route
 // meta) from the already-loaded departures, then prune the proximity clusters
 // via applyClusterTransferTime. Runs client-side in applyScenarioResultFilter.

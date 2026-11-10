@@ -12,6 +12,9 @@ export const routeQuery = gql`
 query Routes($ids: [Int!], $where: RouteFilter, $include_geometry: Boolean! = true) {
   routes(limit: 1000, ids: $ids, where: $where) {
     id
+    # Shared by copies of one route published in different feeds; the result
+    # filter collapses duplicates on it (src/scenario/duplicate-routes.ts).
+    onestop_id
     route_id
     route_short_name
     route_long_name
@@ -64,6 +67,9 @@ export interface RouteGtfs {
 
 export type RouteGql = {
   id: number
+  // Transitland route Onestop ID: r-<geohash>-<name>, with no agency or feed in
+  // it. Empty for routes Transitland could not name (some flex-only routes).
+  onestop_id?: string
   // Absent when the routes phase ran with includeGeometry off.
   geometry?: GeoJSON.MultiLineString
   // routeQuery selects every agency field, and the agency CSV exports them.

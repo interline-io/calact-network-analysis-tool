@@ -34,6 +34,8 @@ interface ScenarioFilters {
   // max transfer time (minutes) for the client-side temporal cluster
   // prune. Effective default 15; 0 means proximity-only (no temporal filter).
   clusterMaxTransferMinutes: WritableComputedRef<number>
+  // hide copies of a route published in more than one feed; on by default
+  collapseDuplicateRoutes: WritableComputedRef<boolean>
   // Updates startTime + endTime in a single navigation so neither overwrites the other.
   setTimeRange: (start: Date | undefined, end: Date | undefined) => void
 }
@@ -161,6 +163,12 @@ export function useScenarioFilters (): ScenarioFilters {
     }
   })
 
+  // On by default, so only turning it off is written to the URL.
+  const collapseDuplicateRoutes = computed<boolean>({
+    get: () => query.value.collapseDuplicateRoutes?.toString() !== 'false',
+    set: (v) => { setQuery({ collapseDuplicateRoutes: v ? undefined : 'false' }) }
+  })
+
   function setTimeRange (start: Date | undefined, end: Date | undefined) {
     setQuery({ startTime: asTimeString(start), endTime: asTimeString(end) })
   }
@@ -185,6 +193,7 @@ export function useScenarioFilters (): ScenarioFilters {
     flexRiderEligibility,
     flexColorBy,
     clusterMaxTransferMinutes,
+    collapseDuplicateRoutes,
     setTimeRange,
   }
 }

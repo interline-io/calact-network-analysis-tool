@@ -1,6 +1,35 @@
 <template>
   <aside class="cal-service-levels menu">
     <p class="menu-label">
+      <cat-tooltip text="The same route can be published in more than one feed. A copy is hidden when another feed's copy, sharing its route Onestop ID, runs the same trips or more; it then leaves every report, count, map layer and export. Copies that run different trips stay.">
+        Duplicate routes
+        <cat-icon icon="information" />
+      </cat-tooltip>
+    </p>
+    <cat-field>
+      <cat-checkbox
+        v-model="collapseDuplicateRoutes"
+        label="Hide copies of routes kept from another feed"
+      />
+    </cat-field>
+    <div v-if="collapseDuplicateRoutes && collapsedRoutes.length > 0" class="content is-small mb-4">
+      <p class="mb-1">
+        {{ collapsedRoutes.length }} hidden:
+      </p>
+      <ul class="mt-0">
+        <li v-for="c of collapsedRoutes" :key="c.route.id">
+          <strong>{{ c.route.agencyName }}: {{ c.route.name }}</strong>
+          from <code>{{ c.route.feedOnestopId }}</code>,
+          {{ relationshipLabels[c.relationship] }}
+          {{ keptNames(c) }} from <code>{{ c.kept[0]?.feedOnestopId }}</code>
+        </li>
+      </ul>
+    </div>
+    <p v-else-if="collapseDuplicateRoutes && departuresLoaded" class="is-size-7 mb-4">
+      None found
+    </p>
+
+    <p class="menu-label">
       Route frequency
     </p>
 
@@ -256,7 +285,7 @@ import {
   STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES,
   STOP_VISITS_DEFAULT_TOTAL,
 } from '~~/src/core'
-import type { ScenarioFilterResult } from '~~/src/scenario'
+import type { CollapsedRouteSummary, DuplicateRouteRelationship, ScenarioFilterResult } from '~~/src/scenario'
 
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
@@ -275,7 +304,23 @@ const {
   stopVisitsUnder,
   stopVisitsOver,
   clusterMaxTransferMinutes,
+  collapseDuplicateRoutes,
 } = useScenarioFilters()
+
+const collapsedRoutes = computed(() => props.scenarioFilterResult?.collapsedRoutes ?? [])
+
+// Completes "<route> from <feed>, … <kept route> from <feed>".
+const relationshipLabels: Record<DuplicateRouteRelationship, string> = {
+  'same-trips': 'same trips as',
+  'subset': 'all its trips run by',
+  'no-trips': 'no trips on these dates; kept',
+}
+
+// The kept copies' names, once each: usually one route, sometimes several
+// rows of one route in the kept feed.
+function keptNames (c: CollapsedRouteSummary): string {
+  return [...new Set(c.kept.map(k => k.name))].join(', ')
+}
 
 // Emptying a field to retype it keeps the current value (see keepValueWhenEmptied).
 const setFrequencyUnder = keepValueWhenEmptied(frequencyUnder)

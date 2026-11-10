@@ -157,6 +157,9 @@ export interface ScenarioFilter {
   // max transfer time (minutes) for the client-side temporal cluster
   // prune. 0/undefined leaves the proximity clusters unfiltered.
   clusterMaxTransferMinutes?: number
+  // Hide copies of a route published in more than one feed
+  // (duplicate-routes.ts). On unless false.
+  collapseDuplicateRoutes?: boolean
 }
 
 // Accumulated scenario results.
