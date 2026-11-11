@@ -1199,7 +1199,9 @@ function featureFor (target: CrossrefTarget): Feature | undefined {
       return displayFeatures.value.find(f => String(f.id) === id && (f.geometry.type === 'Point') === isStop)
     }
     case 'cluster': {
-      const anchor = visibleClusters.value.some(v => v.cluster.id === target.id) ? clusterAnchorPoints.value.get(target.id) : undefined
+      // Every cluster, as the Stop Clusters table lists them: selecting one
+      // the filters hide brings back its agencies and member stops.
+      const anchor = clusterAnchorPoints.value.get(target.id)
       return anchor && pointFeature(anchor)
     }
     case 'flex': {
@@ -1290,9 +1292,11 @@ function focusTarget (target: CrossrefTarget) {
   focusedShape = undefined
   pendingFocus.value = target
   showPendingFocus()
-  // Only flex and aggregation areas are drawn later; anything else the map
-  // isn't drawing is hidden by the filters or has no shape.
-  if (pendingFocus.value && target.kind !== 'flex' && target.kind !== 'geography') {
+  // Only flex areas, and aggregation areas while the overlay draws, appear
+  // later; anything else the map isn't drawing is hidden by the filters, or
+  // outside the overlay's clip.
+  const drawnLater = target.kind === 'flex' || (target.kind === 'geography' && !props.choroplethFeatures?.length)
+  if (pendingFocus.value && !drawnLater) {
     pendingFocus.value = null
     showToast('Not shown on the map with the current filters', 'warning')
   }

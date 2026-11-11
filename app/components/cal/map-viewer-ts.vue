@@ -286,6 +286,8 @@ function initMap () {
   map.on('load', () => {
     createSources()
     createLayers()
+    // A popup opened before the sources existed gets its highlight now.
+    updateHighlight(currentPopupFeatures[currentPopupIndex])
     updateOverlayFeatures(overlayFeatures.value)
     updateStopBufferFeatures(stopBufferFeatures.value)
     updateChoroplethFeatures(choroplethFeatures.value)

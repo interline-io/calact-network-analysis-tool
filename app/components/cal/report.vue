@@ -266,9 +266,10 @@ function rowActions (row: Record<string, any>): DatagridRowAction[] {
   if (!target) {
     return []
   }
-  const actions: DatagridRowAction[] = [
-    { label: 'See on map', icon: 'map-marker', run: () => emit('seeOnMap', target) },
-  ]
+  // A route without a shape has nothing to show on the map.
+  const actions: DatagridRowAction[] = target.kind === 'route' && !routeLookup.value.get(target.id)?.geometry
+    ? []
+    : [{ label: 'See on map', icon: 'map-marker', run: () => emit('seeOnMap', target) }]
   const tripsAction = (run: () => void): DatagridRowAction =>
     ({ label: 'Show trip information', icon: 'bus-clock', run })
   const transfersAction = (subject: TripSubject): DatagridRowAction =>
@@ -285,7 +286,10 @@ function rowActions (row: Record<string, any>): DatagridRowAction[] {
       actions.push(tripsAction(() => emit('openTrips', { kind: 'cluster', clusterId: target.id })), transfersAction({ kind: 'cluster', clusterId: target.id }))
       break
     case 'geography':
-      actions.push({ label: 'View census details', icon: 'chart-box-outline', run: () => emit('openCensusDetails', target.geoid) })
+      // Rows seeded only from stop buffers may have no census details.
+      if (props.scenarioFilterResult?.censusGeographies?.has(target.geoid)) {
+        actions.push({ label: 'View census details', icon: 'chart-box-outline', run: () => emit('openCensusDetails', target.geoid) })
+      }
       break
   }
   // The highlight stays until the reader is done with it, rather than going
