@@ -88,6 +88,7 @@
             @see-on-map="seeOnMap"
             @open-census-details="openCensusDetails"
             @revealed="tableRevealKey = undefined"
+            @clear-highlight="tableHighlight = null"
           >
             <template #transfers>
               <cal-transfer-report

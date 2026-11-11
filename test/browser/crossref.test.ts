@@ -81,6 +81,16 @@ test.describe('Map and table cross-referencing', () => {
     await expect(page.locator('.cal-datagrid-row-highlighted')).toContainText(stopName)
     await expect(page.locator('.cal-datagrid-row-highlighted')).toBeInViewport()
     await expect(page.getByRole('searchbox')).toHaveValue('')
+
+    // The highlighted row's menu removes the highlight; other rows' menus
+    // don't offer it.
+    await page.locator('.cal-report-table tbody tr:not(.cal-datagrid-shim):not(.cal-datagrid-row-highlighted)')
+      .first().locator('.cal-datagrid-row-menu-trigger').click()
+    await expect(page.getByRole('menuitem', { name: 'Remove highlight' })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+    await page.locator('.cal-datagrid-row-highlighted .cal-datagrid-row-menu-trigger').click()
+    await page.getByRole('menuitem', { name: 'Remove highlight' }).click()
+    await expect(page.locator('.cal-datagrid-row-highlighted')).toHaveCount(0)
   })
 
   test('the row menu opens from its button by keyboard and closes with Escape', async () => {

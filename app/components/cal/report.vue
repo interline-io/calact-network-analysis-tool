@@ -229,6 +229,8 @@ const emit = defineEmits<{
   seeOnMap: [target: CrossrefTarget]
   // An aggregation area's census details, as its census panel opens them.
   openCensusDetails: [geoid: string]
+  // The highlighted row, highlighted no more.
+  clearHighlight: []
   // The highlighted row was brought into view.
   revealed: []
 }>()
@@ -275,6 +277,11 @@ function rowActions (row: Record<string, any>): DatagridRowAction[] {
     case 'geography':
       actions.push({ label: 'View census details', icon: 'chart-box-outline', run: () => emit('openCensusDetails', target.geoid) })
       break
+  }
+  // The highlight stays until the reader is done with it, rather than going
+  // on a timer they may not notice.
+  if (highlightRowKey.value != null && crossrefKey(target) === highlightRowKey.value) {
+    actions.push({ label: 'Remove highlight', icon: 'close', run: () => emit('clearHighlight') })
   }
   return actions
 }
