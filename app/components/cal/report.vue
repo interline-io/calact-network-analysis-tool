@@ -82,7 +82,7 @@
       v-model:view="activeTableView"
       :table-report="activeTableReport"
       :caption="activeReportTabLabel"
-      :row-actions="rowActions"
+      :row-actions="activeReportTab === 'agencies' ? undefined : rowActions"
       :row-label="rowLabel"
       :row-key="rowKey"
       :highlight-row-key="highlightRowKey"
@@ -266,10 +266,15 @@ function rowActions (row: Record<string, any>): DatagridRowAction[] {
   if (!target) {
     return []
   }
-  // A route without a shape has nothing to show on the map.
-  const actions: DatagridRowAction[] = target.kind === 'route' && !routeLookup.value.get(target.id)?.geometry
-    ? []
-    : [{ label: 'See on map', icon: 'map-marker', run: () => emit('seeOnMap', target) }]
+  // A route without a shape has nothing to show on the map, nor an area
+  // seeded only from stop buffers, which has no census outline.
+  const hasCensus = target.kind === 'geography' && !!props.scenarioFilterResult?.censusGeographies?.has(target.geoid)
+  const onMap = target.kind === 'route'
+    ? !!routeLookup.value.get(target.id)?.geometry
+    : target.kind !== 'geography' || hasCensus
+  const actions: DatagridRowAction[] = onMap
+    ? [{ label: 'See on map', icon: 'map-marker', run: () => emit('seeOnMap', target) }]
+    : []
   const tripsAction = (run: () => void): DatagridRowAction =>
     ({ label: 'Show trip information', icon: 'bus-clock', run })
   const transfersAction = (subject: TripSubject): DatagridRowAction =>
@@ -287,7 +292,7 @@ function rowActions (row: Record<string, any>): DatagridRowAction[] {
       break
     case 'geography':
       // Rows seeded only from stop buffers may have no census details.
-      if (props.scenarioFilterResult?.censusGeographies?.has(target.geoid)) {
+      if (hasCensus) {
         actions.push({ label: 'View census details', icon: 'chart-box-outline', run: () => emit('openCensusDetails', target.geoid) })
       }
       break

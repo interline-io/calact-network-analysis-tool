@@ -301,6 +301,7 @@ import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import { useQueryGeography } from '~/composables/useQueryGeography'
 import { useFetchMode } from '~/composables/useFetchMode'
+import { useToastNotification } from '~/composables/useToastNotification'
 import {
   geographyLayerQuery,
   geographyBboxQuery,
@@ -1145,6 +1146,7 @@ const tableRevealKey = ref<number>()
 // A feature for the map to select and bring into view.
 const mapFocus = shallowRef<CrossrefRequest | null>(null)
 let crossrefCount = 0
+const { showToast } = useToastNotification()
 
 // "See in data table": its table, with the map showing the same kind of
 // feature as the report's tabs do, and its row brought into view.
@@ -1167,14 +1169,25 @@ function seeInTable (target: CrossrefTarget) {
 function seeOnMap (target: CrossrefTarget) {
   tableHighlight.value = target
   tableRevealKey.value = undefined
+  activeTab.value = { tab: 'map', sub: '' }
   if (target.kind === 'geography') {
     showAggAreas.value = true
     selectedAggregationGeoid.value = target.geoid
-  } else if (target.kind === 'flex') {
-    flexServicesEnabled.value = true
+    // The overlay leaves out an area its clip doesn't reach; its census
+    // panel still opens.
+    if (!choroplethAggregateData.value.some(r => r.geoid === target.geoid)) {
+      mapFocus.value = null
+      showToast('Not drawn on the map with the current clipping mode', 'warning')
+      return
+    }
+  } else {
+    // One selection at a time on the map.
+    selectedAggregationGeoid.value = null
+    if (target.kind === 'flex') {
+      flexServicesEnabled.value = true
+    }
   }
   mapFocus.value = { target, key: ++crossrefCount }
-  activeTab.value = { tab: 'map', sub: '' }
 }
 
 // A row is brought into view on the visit that asked for it, not a later one.

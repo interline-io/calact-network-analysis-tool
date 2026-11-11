@@ -104,6 +104,12 @@ test.describe('Map and table cross-referencing', () => {
     await expect(trigger).toBeFocused()
   })
 
+  test('agency rows have no menu, nor the space for one', async () => {
+    await openReportTab(page, 'Agencies')
+    await expect(page.locator('.cal-report-table .cal-datagrid-row-menu-trigger')).toHaveCount(0)
+    await expect(page.locator('.cal-report-table .cal-datagrid-row-menu-spacer')).toHaveCount(0)
+  })
+
   test('a route row\'s menu opens its trip information', async () => {
     await openReportTab(page, 'Routes')
     const row = page.locator('.cal-report-table tbody tr:not(.cal-datagrid-shim)').first()

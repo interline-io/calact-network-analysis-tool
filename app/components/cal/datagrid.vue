@@ -688,6 +688,10 @@ watch(current, () => {
     keepHighlightPage = false
   }
 })
+// A sort or filter is the reader's too, even when the page stays the same.
+watch([sortKey, sortDir, searchQuery], () => {
+  keepHighlightPage = false
+})
 watch(() => tableReport.value?.data, () => {
   if (!keepHighlightPage || !showHighlightPage()) {
     keepHighlightPage = false
@@ -992,6 +996,11 @@ useEventListener(openMenuDocument, 'pointerdown', (event: PointerEvent) => {
     return
   }
   dismissedRow = menuRowEl?.contains(target) ? menuRow.value : null
+  // Spent by the click that follows, whatever it lands on; a press dragged
+  // off the row ends in a click on the table instead, which spends it too.
+  window.addEventListener('click', () => {
+    dismissedRow = null
+  }, { once: true })
   closeRowMenu()
 }, { capture: true })
 // Placed in the window, the menu moves with its row as the page or the
@@ -1012,8 +1021,21 @@ useEventListener(openMenuWindow, 'scroll', () => {
   menuRowAt = { top: rect.top, left: rect.left }
 }, { capture: true, passive: true })
 useEventListener(openMenuWindow, 'resize', () => closeRowMenu())
-// Rows that change under an open menu leave it pointing at nothing.
-watch(currentRows, () => closeRowMenu())
+// Rows refreshed under an open menu, as background data lands, keep it on its
+// row; a row gone from the page closes it.
+watch(currentRows, (rows) => {
+  const open = menuRow.value
+  if (!open) {
+    return
+  }
+  const key = rowKeyOf(open)
+  const same = key == null ? undefined : rows.find(row => rowKeyOf(row) === key)
+  if (same) {
+    menuRow.value = same
+  } else if (!rows.includes(open)) {
+    closeRowMenu()
+  }
+})
 
 /////////////////
 // Highlight and reveal

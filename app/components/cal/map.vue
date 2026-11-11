@@ -1103,8 +1103,9 @@ function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
     featureId: cluster.id,
     sourceLayer: 'clusters',
     featureType: 'cluster',
-    // The Stop Clusters table lists every cluster.
-    inTable: true,
+    // The Stop Clusters table lists every cluster, while fixed-route service
+    // is shown.
+    inTable: fixedRouteEnabled.value !== false,
     data: {
       cluster_id: cluster.id,
       cluster_name: clusterDisplayName(cluster.name, cluster.nearName),
@@ -1256,8 +1257,9 @@ function showFocus (target: CrossrefTarget, feature: Feature) {
         if (cluster) {
           selectedClusterId.value = target.id
           popup = buildClusterPopup(cluster, at)
-          // The spokes from its anchor reach every member stop.
-          fit = clusterLineFeatures.value.length > 0 ? clusterLineFeatures.value : fit
+          // The anchor and every member stop, the far ends of its spokes,
+          // as points, so the view leaves room for its tall popup below.
+          fit = [feature, ...clusterLineFeatures.value.map(line => pointFeature((line.geometry as { coordinates: number[][] }).coordinates[1]!))]
         }
         break
       }
@@ -1292,10 +1294,10 @@ function focusTarget (target: CrossrefTarget) {
   focusedShape = undefined
   pendingFocus.value = target
   showPendingFocus()
-  // Only flex areas, and aggregation areas while the overlay draws, appear
-  // later; anything else the map isn't drawing is hidden by the filters, or
-  // outside the overlay's clip.
-  const drawnLater = target.kind === 'flex' || (target.kind === 'geography' && !props.choroplethFeatures?.length)
+  // Flex and aggregation areas are drawn later (the page asks only for ones
+  // that will be); anything else the map isn't drawing is hidden by the
+  // filters.
+  const drawnLater = target.kind === 'flex' || target.kind === 'geography'
   if (pendingFocus.value && !drawnLater) {
     pendingFocus.value = null
     showToast('Not shown on the map with the current filters', 'warning')
