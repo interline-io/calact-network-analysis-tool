@@ -11,9 +11,12 @@
  * routes in other feeds sharing its Onestop ID and how their trips compare on
  * the scenario's first week (the routes phase asks for it). Two routes are
  * copies when one's trips run in the other's: SAME_TRIPS, SUBSET or SUPERSET.
- * Partial, disjoint and no-trips relationships are never collapsed. A route
- * with no trips on those dates is already unmarked by the service filters, and
- * hiding it would need evidence that it is a copy.
+ * A feed can split one route into several rows, such as one per branch, which
+ * no single row covers, so a route also counts as a copy of a feed's rows when
+ * its trips run in all of them together (the feed_ fields). Partial, disjoint
+ * and no-trips relationships are never collapsed. A route with no trips on
+ * those dates is already unmarked by the service filters, and hiding it would
+ * need evidence that it is a copy.
  *
  * Copies form groups. In each group the routes of one feed are kept, chosen by,
  * in order:
@@ -21,11 +24,15 @@
  *      agency, mode or fare of one copy never makes the route vanish;
  *   2. the fewest agencies in the scenario, so an agency's own feed is kept
  *      over a feed that also carries other agencies' routes;
- *   3. the most trips on the group's routes over the compared dates;
- *   4. the most routes in the scenario, so a flex build is kept over the plain
+ *   3. the newest timetable (the latest start of its feed version's calendar),
+ *      so an agency's current edition is kept over another publisher's older
+ *      copy, which can run more trips because it predates a service cut;
+ *   4. the most trips on the group's routes over the compared dates;
+ *   5. the most routes in the scenario, so a flex build is kept over the plain
  *      build it extends;
- *   5. the feed Onestop ID, compared by code point.
- * A route from another feed is hidden only when its trips run in a kept route.
+ *   6. the feed Onestop ID, compared by code point.
+ * A route from another feed is hidden only when its trips run in a kept route,
+ * or in all of the kept feed's rows in the group together.
  *
  * Applied in the result filter after routes are marked and before stops,
  * departures and clusters are derived, so every report, count, map layer and
@@ -104,6 +111,8 @@ export function findDuplicateRoutes (
 
   // runsIn.get(a)?.get(b): a's trips run in b's.
   const runsIn = new Map<number, Map<number, RunsIn>>()
+  // runsInFeed.get(a)?.get(feed): a's trips run in that feed's rows together.
+  const runsInFeed = new Map<number, Map<string, RunsIn>>()
   const setRunsIn = (a: number, b: number, v: RunsIn) => {
     const m = runsIn.get(a) || new Map<number, RunsIn>()
     if (!m.has(b)) {
@@ -113,6 +122,8 @@ export function findDuplicateRoutes (
   }
   const tripsOf = new Map<number, number>()
   const parent = new Map<number, number>()
+  // Routes joined to another, through either kind of relationship.
+  const linked = new Set<number>()
   const find = (x: number): number => {
     let p = parent.get(x) ?? x
     while (p !== (parent.get(p) ?? p)) {
@@ -120,6 +131,11 @@ export function findDuplicateRoutes (
     }
     parent.set(x, p)
     return p
+  }
+  const join = (a: number, b: number) => {
+    parent.set(find(a), find(b))
+    linked.add(a)
+    linked.add(b)
   }
   for (const route of routes) {
     for (const s of route.similar_routes || []) {
@@ -141,27 +157,43 @@ export function findDuplicateRoutes (
         setRunsIn(other.id, route.id, { relationship: s.relationship === 'SAME_TRIPS' ? 'same-trips' : 'subset', matchedTrips: matched, trips: s.other_trips ?? 0 })
       }
       if (s.relationship === 'SAME_TRIPS' || s.relationship === 'SUBSET' || s.relationship === 'SUPERSET') {
-        parent.set(find(route.id), find(other.id))
+        join(route.id, other.id)
+      }
+      const feedRel = s.feed_relationship
+      if (feedRel === 'SAME_TRIPS' || feedRel === 'SUBSET') {
+        const m = runsInFeed.get(route.id) || new Map<string, RunsIn>()
+        if (!m.has(feedOf(other))) {
+          m.set(feedOf(other), { relationship: feedRel === 'SAME_TRIPS' ? 'same-trips' : 'subset', matchedTrips: s.feed_matched_trips ?? 0, trips: s.trips ?? 0 })
+        }
+        runsInFeed.set(route.id, m)
+      }
+      if (feedRel === 'SAME_TRIPS' || feedRel === 'SUBSET' || feedRel === 'SUPERSET') {
+        join(route.id, other.id)
       }
     }
   }
-  if (runsIn.size === 0) {
+  if (runsIn.size === 0 && runsInFeed.size === 0) {
     return ret
   }
 
   // Scenario-wide feed facts for the keeper.
   const feedAgencies = new Map<string, Set<number>>()
   const feedRoutes = new Map<string, number>()
+  const feedStart = new Map<string, string>()
   for (const route of routes) {
     const feed = feedOf(route)
     feedRoutes.set(feed, (feedRoutes.get(feed) || 0) + 1)
+    const start = route.feed_version?.earliest_calendar_date || ''
+    if (start > (feedStart.get(feed) || '')) {
+      feedStart.set(feed, start)
+    }
     const agencies = feedAgencies.get(feed) || new Set<number>()
     agencies.add(route.agency?.id)
     feedAgencies.set(feed, agencies)
   }
 
   const groups = new Map<number, RouteGql[]>()
-  for (const id of new Set([...runsIn.keys(), ...[...runsIn.values()].flatMap(m => [...m.keys()])])) {
+  for (const id of linked) {
     const route = byId.get(id)
     if (route) {
       const root = find(id)
@@ -181,6 +213,7 @@ export function findDuplicateRoutes (
     const feeds = [...byFeed.keys()].sort((a, b) =>
       Number(anyMarked(b)) - Number(anyMarked(a))
       || (feedAgencies.get(a)?.size || 0) - (feedAgencies.get(b)?.size || 0)
+      || compareCodePoints(feedStart.get(b) || '', feedStart.get(a) || '')
       || trips(b) - trips(a)
       || (feedRoutes.get(b) || 0) - (feedRoutes.get(a) || 0)
       || compareCodePoints(a, b))
@@ -192,17 +225,28 @@ export function findDuplicateRoutes (
       const into = [...(runsIn.get(route.id) || new Map<number, RunsIn>()).entries()]
         .filter(([other]) => kept.has(other))
         .sort(([ia, a], [ib, b]) => b.matchedTrips - a.matchedTrips || ia - ib)
-      if (into.length === 0) {
+      if (into.length > 0) {
+        const [, first] = into[0]!
+        ret.set(route.id, {
+          routeId: route.id,
+          keptRouteIds: into.map(([other]) => other),
+          relationship: first.relationship,
+          matchedTrips: first.matchedTrips,
+          trips: first.trips,
+        })
         continue
       }
-      const [, first] = into[0]!
-      ret.set(route.id, {
-        routeId: route.id,
-        keptRouteIds: into.map(([other]) => other),
-        relationship: first.relationship,
-        matchedTrips: first.matchedTrips,
-        trips: first.trips,
-      })
+      // No single kept row covers it; the kept feed's rows together may.
+      const together = runsInFeed.get(route.id)?.get(feeds[0]!)
+      if (together) {
+        ret.set(route.id, {
+          routeId: route.id,
+          keptRouteIds: [...kept].sort((a, b) => a - b),
+          relationship: together.relationship,
+          matchedTrips: together.matchedTrips,
+          trips: together.trips,
+        })
+      }
     }
   }
   return ret

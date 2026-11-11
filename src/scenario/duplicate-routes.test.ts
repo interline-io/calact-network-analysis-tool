@@ -41,11 +41,13 @@ function makeRoute (id: number, feed: string, agencyId: number, similar?: Simila
   }
 }
 
-// The relationship as each side reports it.
+// The relationship as each side reports it. Each feed here has one row of the
+// route, so the feed-wide fields repeat the pair's.
 function pair (a: RouteGql, b: RouteGql, rel: RouteTripRelationship, tripsA: number, tripsB: number, matched: number) {
   const back: Record<string, RouteTripRelationship> = { SUBSET: 'SUPERSET', SUPERSET: 'SUBSET' }
-  a.similar_routes = [...(a.similar_routes || []), { route: { id: b.id }, relationship: rel, trips: tripsA, other_trips: tripsB, matched_trips: matched }]
-  b.similar_routes = [...(b.similar_routes || []), { route: { id: a.id }, relationship: back[rel] || rel, trips: tripsB, other_trips: tripsA, matched_trips: matched }]
+  const relB = back[rel] || rel
+  a.similar_routes = [...(a.similar_routes || []), { route: { id: b.id }, relationship: rel, trips: tripsA, other_trips: tripsB, matched_trips: matched, feed_relationship: rel, feed_trips: tripsB, feed_matched_trips: matched }]
+  b.similar_routes = [...(b.similar_routes || []), { route: { id: a.id }, relationship: relB, trips: tripsB, other_trips: tripsA, matched_trips: matched, feed_relationship: relB, feed_trips: tripsA, feed_matched_trips: matched }]
 }
 
 function makeStop (id: number, feed: string, routes: Array<[routeId: number, agencyId: number]>): StopGql {
@@ -146,6 +148,31 @@ describe('duplicate route collapse', () => {
     expect(result.collapsedRoutes).toEqual([])
   })
 
+  it('keeps an agency\'s newer timetable over an older copy with more trips', () => {
+    // Island Transit's own feed starts its current timetable in September; a
+    // copy published elsewhere still has the older one, whose trips include
+    // all of the newer route's. Both feeds have one agency.
+    const own = makeRoute(1, 'f-own', 1)
+    const older = makeRoute(2, 'f-copy', 2)
+    own.feed_version.earliest_calendar_date = '2026-09-27'
+    older.feed_version.earliest_calendar_date = '2025-06-01'
+    pair(own, older, 'SUBSET', 95, 147, 95)
+    const result = applyScenarioResultFilter(makeData([own, older], []), config, {})
+    // The newer edition is kept, and the older copy, which runs trips it no
+    // longer does, stays visible beside it.
+    expect(result.routes).toHaveLength(2)
+    expect(result.collapsedRoutes).toEqual([])
+
+    // When the newer edition runs everything the older one did, the older is hidden.
+    const own2 = makeRoute(1, 'f-own', 1)
+    const older2 = makeRoute(2, 'f-copy', 2)
+    own2.feed_version.earliest_calendar_date = '2026-09-27'
+    older2.feed_version.earliest_calendar_date = '2025-06-01'
+    pair(own2, older2, 'SUPERSET', 147, 95, 95)
+    const result2 = applyScenarioResultFilter(makeData([own2, older2], []), config, {})
+    expect(result2.collapsedRoutes[0]).toMatchObject({ route: { id: 2, feedOnestopId: 'f-copy' }, kept: [{ id: 1 }] })
+  })
+
   it('never collapses partial, disjoint or no-trips relationships', () => {
     for (const rel of ['PARTIAL', 'DISJOINT', 'NO_TRIPS', 'OTHER_NO_TRIPS'] as RouteTripRelationship[]) {
       const a = makeRoute(1, 'f-a', 1)
@@ -191,6 +218,29 @@ describe('duplicate route collapse', () => {
     const result = applyScenarioResultFilter(makeData([split1, split2, other], []), config, {})
     expect(ids(result.routes)).toEqual([1, 2])
     expect(result.collapsedRoutes[0]!.kept.map(k => k.id).sort()).toEqual([1, 2])
+  })
+
+  it('hides a route whose trips run in another feed\'s rows together', () => {
+    // f-whole has the line as one row; f-branches splits it into two, neither
+    // of which covers it, as TfNSW's train feed splits T1 by branch.
+    const whole = makeRoute(1, 'f-whole', 1)
+    const north = makeRoute(2, 'f-branches', 2)
+    const west = makeRoute(3, 'f-branches', 2)
+    whole.similar_routes = [
+      { route: { id: 2 }, relationship: 'SUPERSET', trips: 10, other_trips: 6, matched_trips: 6, feed_relationship: 'SAME_TRIPS', feed_trips: 10, feed_matched_trips: 10 },
+      { route: { id: 3 }, relationship: 'SUPERSET', trips: 10, other_trips: 4, matched_trips: 4, feed_relationship: 'SAME_TRIPS', feed_trips: 10, feed_matched_trips: 10 },
+    ]
+    north.similar_routes = [{ route: { id: 1 }, relationship: 'SUBSET', trips: 6, other_trips: 10, matched_trips: 6, feed_relationship: 'SUBSET', feed_trips: 10, feed_matched_trips: 6 }]
+    west.similar_routes = [{ route: { id: 1 }, relationship: 'SUBSET', trips: 4, other_trips: 10, matched_trips: 4, feed_relationship: 'SUBSET', feed_trips: 10, feed_matched_trips: 4 }]
+    // One agency each and the same trips, so the feed with more routes is kept.
+    const result = applyScenarioResultFilter(makeData([whole, north, west], []), config, {})
+    expect(ids(result.routes)).toEqual([2, 3])
+    expect(result.collapsedRoutes[0]).toMatchObject({ route: { id: 1 }, kept: [{ id: 2 }, { id: 3 }], relationship: 'same-trips', matchedTrips: 10, trips: 10 })
+
+    // When the whole route's feed is kept instead, each branch row runs in it.
+    const filter: ScenarioFilter = { selectedAgencies: ['Agency 1'] }
+    const kept = applyScenarioResultFilter(makeData([whole, north, west], []), config, filter)
+    expect(ids(kept.routes)).toEqual([1])
   })
 
   it('leaves a shared stop in place, without the hidden copy or its departures', () => {

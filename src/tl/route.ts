@@ -32,6 +32,9 @@ query Routes($ids: [Int!], $where: RouteFilter, $include_geometry: Boolean! = tr
     geometry @include(if: $include_geometry)
     feed_version {
       sha1
+      # When the version's timetable starts: the duplicate route collapse keeps
+      # a newer edition over an older copy.
+      earliest_calendar_date
       feed {
         onestop_id
       }
@@ -47,6 +50,11 @@ query Routes($ids: [Int!], $where: RouteFilter, $include_geometry: Boolean! = tr
       other_trips
       matched_trips
       relationship
+      # The same against all of the candidate feed's rows together, for a
+      # feed that splits one route into several rows.
+      feed_trips
+      feed_matched_trips
+      feed_relationship
     }
     agency {
       id
@@ -89,6 +97,11 @@ export interface SimilarRouteGql {
   other_trips?: number | null
   matched_trips?: number | null
   relationship?: RouteTripRelationship | string | null
+  // Against all of the candidate feed's similar routes together; the same on
+  // each of that feed's entries.
+  feed_trips?: number | null
+  feed_matched_trips?: number | null
+  feed_relationship?: RouteTripRelationship | string | null
 }
 
 export type RouteGql = {
@@ -104,6 +117,8 @@ export type RouteGql = {
   agency: AgencyGql
   feed_version: {
     sha1: string
+    // YYYY-MM-DD; absent from routes fetched by older queries.
+    earliest_calendar_date?: string | null
     feed: {
       onestop_id: string
     }
