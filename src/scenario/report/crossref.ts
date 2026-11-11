@@ -1,4 +1,4 @@
-import type { DataDisplayMode } from '../../core'
+import type { DataDisplayMode, PopupFeature } from '../../core'
 
 // Cross-referencing between the map and the Reports tables (#44): "See on map"
 // from a table row, and "See in data table" from a map popup or the census
@@ -45,14 +45,24 @@ export function crossrefKey (target: CrossrefTarget): string {
     case 'cluster':
       return String(target.id)
     case 'flex':
-      return flexKey(target.feedOnestopId, target.locationId)
+      return `${target.feedOnestopId}:${target.locationId}`
     case 'geography':
       return target.geoid
   }
 }
 
-function flexKey (feedOnestopId: unknown, locationId: unknown): string {
-  return `${String(feedOnestopId ?? '')}:${String(locationId ?? '')}`
+// A flex area by its feed and location id, as a table row, a map feature's
+// properties and a popup all carry them.
+export function flexTarget (feedOnestopId: unknown, locationId: unknown): CrossrefTarget | undefined {
+  return feedOnestopId == null || feedOnestopId === '' || locationId == null
+    ? undefined
+    : { kind: 'flex', feedOnestopId: String(feedOnestopId), locationId: String(locationId) }
+}
+
+// A numeric id as a route or stop target.
+function idTarget (kind: 'route' | 'stop', value: unknown): CrossrefTarget | undefined {
+  const id = Number(value)
+  return value == null || value === '' || !Number.isFinite(id) ? undefined : { kind, id }
 }
 
 // The target a table row names. Agencies have no one shape to show, and the
@@ -60,21 +70,30 @@ function flexKey (feedOnestopId: unknown, locationId: unknown): string {
 export function reportRowTarget (tab: ReportTab, row: Record<string, any>): CrossrefTarget | undefined {
   switch (tab) {
     case 'routes':
-    case 'stops': {
-      const id = Number(row.id)
-      if (row.id == null || !Number.isFinite(id)) {
-        return undefined
-      }
-      return { kind: tab === 'routes' ? 'route' : 'stop', id }
-    }
+      return idTarget('route', row.id)
+    case 'stops':
+      return idTarget('stop', row.id)
     case 'stop-clusters':
       return row.id == null ? undefined : { kind: 'cluster', id: String(row.id) }
     case 'flex':
-      return row.location_id == null || row.feed_onestop_id == null
-        ? undefined
-        : { kind: 'flex', feedOnestopId: String(row.feed_onestop_id), locationId: String(row.location_id) }
+      return flexTarget(row.feed_onestop_id, row.location_id)
     case 'stops-aggregated':
       return row.geoid == null ? undefined : { kind: 'geography', geoid: String(row.geoid) }
+    default:
+      return undefined
+  }
+}
+
+// The target a map popup's feature names, for "See in data table".
+export function popupFeatureTarget (feature: PopupFeature): CrossrefTarget | undefined {
+  switch (feature.featureType) {
+    case 'stop':
+    case 'route':
+      return idTarget(feature.featureType, feature.featureId)
+    case 'cluster':
+      return feature.featureId == null ? undefined : { kind: 'cluster', id: String(feature.featureId) }
+    case 'flex':
+      return flexTarget(feature.data?.feed_onestop_id, feature.data?.location_id)
     default:
       return undefined
   }
@@ -135,9 +154,4 @@ export function displayModeForReportTab (tab: ReportTab, current: DataDisplayMod
     return undefined
   }
   return mode
-}
-
-// The page, counting from 1, that holds the row at an index.
-export function pageOfIndex (index: number, perPage: number): number {
-  return Math.floor(Math.max(0, index) / Math.max(1, perPage)) + 1
 }

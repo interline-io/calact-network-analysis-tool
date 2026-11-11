@@ -3,7 +3,7 @@ import {
   crossrefKey,
   crossrefReportTab,
   displayModeForReportTab,
-  pageOfIndex,
+  popupFeatureTarget,
   reportRowKey,
   reportRowLabel,
   reportRowTarget,
@@ -93,11 +93,19 @@ describe('displayModeForReportTab', () => {
   })
 })
 
-describe('pageOfIndex', () => {
-  it('counts pages from 1', () => {
-    expect(pageOfIndex(0, 20)).toBe(1)
-    expect(pageOfIndex(19, 20)).toBe(1)
-    expect(pageOfIndex(20, 20)).toBe(2)
-    expect(pageOfIndex(45, 20)).toBe(3)
+describe('popupFeatureTarget', () => {
+  const point = { lon: 0, lat: 0 }
+
+  it('names the table row of a stop, route, cluster or flex popup', () => {
+    expect(popupFeatureTarget({ point, featureType: 'stop', featureId: '7' })).toEqual({ kind: 'stop', id: 7 })
+    expect(popupFeatureTarget({ point, featureType: 'route', featureId: 12 })).toEqual({ kind: 'route', id: 12 })
+    expect(popupFeatureTarget({ point, featureType: 'cluster', featureId: 'c1' })).toEqual({ kind: 'cluster', id: 'c1' })
+    expect(popupFeatureTarget({ point, featureType: 'flex', featureId: 'zone', data: { location_id: 'zone', feed_onestop_id: 'f-x' } }))
+      .toEqual({ kind: 'flex', feedOnestopId: 'f-x', locationId: 'zone' })
+  })
+
+  it('names nothing without an id, or a flex area without its feed', () => {
+    expect(popupFeatureTarget({ point, featureType: 'stop', featureId: '' })).toBeUndefined()
+    expect(popupFeatureTarget({ point, featureType: 'flex', featureId: 'zone', data: { location_id: 'zone' } })).toBeUndefined()
   })
 })

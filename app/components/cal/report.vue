@@ -83,10 +83,10 @@
       :table-report="activeTableReport"
       :caption="activeReportTabLabel"
       :row-actions="rowActions"
-      :row-label="row => reportRowLabel(activeReportTab, row)"
-      :row-key="row => reportRowKey(activeReportTab, row)"
+      :row-label="rowLabel"
+      :row-key="rowKey"
       :highlight-row-key="highlightRowKey"
-      :reveal-key="highlightOnTab ? revealKey : undefined"
+      :reveal-key="revealKey"
       @revealed="emit('revealed')"
     >
       <!-- Custom rendering for URLs column (flex areas) -->
@@ -245,9 +245,19 @@ const activeTableView = computed({
   },
 })
 
-// The highlighted row, when it is in the table shown.
-const highlightOnTab = computed(() => !!props.highlight && crossrefReportTab(props.highlight) === activeReportTab.value)
-const highlightRowKey = computed(() => highlightOnTab.value ? crossrefKey(props.highlight!) : undefined)
+// The highlighted row, when it is in the table shown; the grid reveals
+// nothing without one.
+const highlightRowKey = computed(() => props.highlight && crossrefReportTab(props.highlight) === activeReportTab.value
+  ? crossrefKey(props.highlight)
+  : undefined)
+
+// A row's key and name, as the table shown gives them.
+function rowKey (row: Record<string, any>): string | undefined {
+  return reportRowKey(activeReportTab.value, row)
+}
+function rowLabel (row: Record<string, any>): string | undefined {
+  return reportRowLabel(activeReportTab.value, row)
+}
 
 // A row's menu: "See on map", then what the map popup or census panel offers
 // for the same feature: its trips, its transfers, its census details.
@@ -259,20 +269,20 @@ function rowActions (row: Record<string, any>): DatagridRowAction[] {
   const actions: DatagridRowAction[] = [
     { label: 'See on map', icon: 'map-marker', run: () => emit('seeOnMap', target) },
   ]
-  const tripsAction = (subject: TripSubject): DatagridRowAction =>
-    ({ label: 'Show trip information', icon: 'bus-clock', run: () => emit('openTrips', subject) })
+  const tripsAction = (run: () => void): DatagridRowAction =>
+    ({ label: 'Show trip information', icon: 'bus-clock', run })
   const transfersAction = (subject: TripSubject): DatagridRowAction =>
     ({ label: 'Enter Transfer Analyst', icon: 'transit-transfer', run: () => emit('openTransfers', subject) })
   switch (target.kind) {
     case 'route':
       // Only a route in the current results, as with its drill buttons.
-      actions.push({ label: 'Show trip information', icon: 'bus-clock', run: () => handleRouteDrill(target.id, 'trips') })
+      actions.push(tripsAction(() => handleRouteDrill(target.id, 'trips')))
       break
     case 'stop':
-      actions.push(tripsAction({ kind: 'stop', stopId: target.id }), transfersAction({ kind: 'stop', stopId: target.id }))
+      actions.push(tripsAction(() => emit('openTrips', { kind: 'stop', stopId: target.id })), transfersAction({ kind: 'stop', stopId: target.id }))
       break
     case 'cluster':
-      actions.push(tripsAction({ kind: 'cluster', clusterId: target.id }), transfersAction({ kind: 'cluster', clusterId: target.id }))
+      actions.push(tripsAction(() => emit('openTrips', { kind: 'cluster', clusterId: target.id })), transfersAction({ kind: 'cluster', clusterId: target.id }))
       break
     case 'geography':
       actions.push({ label: 'View census details', icon: 'chart-box-outline', run: () => emit('openCensusDetails', target.geoid) })

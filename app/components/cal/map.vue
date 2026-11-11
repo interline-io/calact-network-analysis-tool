@@ -82,8 +82,8 @@ import { ref, shallowRef, computed, toRaw, watch, toRef } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo, QueryPolygon } from '~~/src/core'
-import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
-import { buildStyleData, clusterDisplayName, visibleAgencyIds, type CrossrefRequest, type CrossrefTarget, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
+import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale, isPolygonal, polygonBbox } from '~~/src/core'
+import { buildStyleData, clusterDisplayName, crossrefKey, flexTarget, popupFeatureTarget, visibleAgencyIds, type CrossrefRequest, type CrossrefTarget, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
 
 const emit = defineEmits<{
   setMapExtent: [value: Bbox, userInitiated: boolean]
@@ -268,6 +268,7 @@ const hasClusterData = computed(() => visibleClusters.value.length > 0)
 // popup list dismisses both in the viewer).
 function clearSelection () {
   selectedClusterId.value = null
+  pendingFocus.value = null
   popupFeatures.value = []
 }
 
@@ -289,6 +290,7 @@ function onPopupShown (featureType: string, featureId: string | number) {
 
 function onPopupClosed () {
   selectedClusterId.value = null
+  pendingFocus.value = null
   emit('selectionCleared')
 }
 
@@ -890,9 +892,9 @@ let extentFromUser = false
 
 function mapMove (v: any) {
   extentFromUser ||= !!v.userInitiated
-  // The user has taken over the view from a focused geography.
+  // The user has taken over the view from a focused feature.
   if (v.userInitiated) {
-    focusGeoid.value = null
+    pendingFocus.value = null
   }
   const b = v.bbox
   extentBbox.value = {
@@ -919,8 +921,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
 
   // Whatever was selected before is replaced by this click.
   emit('selectionCleared')
-  focusGeoid.value = null
-  pendingFlex.value = null
+  pendingFocus.value = null
 
   for (const feature of features) {
     const featureId = feature.id?.toString() || ''
@@ -1159,28 +1160,8 @@ function handleOpenTransfers (featureType: string, featureId: string | number) {
   }
 }
 
-// The table row a popup's feature is.
-function popupTarget (feature: PopupFeature): CrossrefTarget | undefined {
-  const id = Number(feature.featureId)
-  switch (feature.featureType) {
-    case 'stop':
-      return Number.isFinite(id) ? { kind: 'stop', id } : undefined
-    case 'route':
-      return Number.isFinite(id) ? { kind: 'route', id } : undefined
-    case 'cluster':
-      return { kind: 'cluster', id: String(feature.featureId) }
-    case 'flex': {
-      const feed = feature.data?.feed_onestop_id
-      const location = feature.data?.location_id
-      return feed && location != null ? { kind: 'flex', feedOnestopId: feed, locationId: String(location) } : undefined
-    }
-    default:
-      return undefined
-  }
-}
-
 function handleSeeInTable (feature: PopupFeature) {
-  const target = popupTarget(feature)
+  const target = popupFeatureTarget(feature)
   if (target) {
     emit('seeInTable', target)
   }
@@ -1192,14 +1173,43 @@ function handleSeeInTable (feature: PopupFeature) {
 // What the viewer brings into view, and the count that tells it to.
 const focusFeatures = shallowRef<Feature[]>([])
 const focusKey = ref(0)
-// A geography waiting for its outline, which streams in after the overlay
-// is turned on.
-const focusGeoid = ref<string | null>(null)
-// A flex area focused before the map draws flex areas.
-const pendingFlex = shallowRef<Extract<CrossrefTarget, { kind: 'flex' }> | null>(null)
+
+// The focused feature, followed until the user moves or clicks the map, or
+// something else is focused: a feature not drawn yet (flex areas wait for
+// flex services, just turned on; an aggregation area for its outline) is
+// shown once it is, and one whose shape changes (an area's full outline,
+// then its clipped one once the aggregation refetch lands) is shown again.
+const pendingFocus = shallowRef<CrossrefTarget | null>(null)
+// The coordinates last shown, which stay the same object while the shape does.
+let focusedShape: unknown
 
 function pointFeature (coordinates: number[]): Feature {
   return { type: 'Feature', geometry: { type: 'Point', coordinates }, properties: {} } as Feature
+}
+
+// The drawn feature a target names, if the map draws it.
+function featureFor (target: CrossrefTarget): Feature | undefined {
+  switch (target.kind) {
+    case 'stop':
+    case 'route': {
+      const id = String(target.id)
+      const isStop = target.kind === 'stop'
+      return displayFeatures.value.find(f => String(f.id) === id && (f.geometry.type === 'Point') === isStop)
+    }
+    case 'cluster': {
+      const anchor = visibleClusters.value.some(v => v.cluster.id === target.id) ? clusterAnchorPoints.value.get(target.id) : undefined
+      return anchor && pointFeature(anchor)
+    }
+    case 'flex': {
+      const key = crossrefKey(target)
+      return flexFeatures.value.find((f) => {
+        const t = flexTarget(f.properties?.feed_onestop_id, f.properties?.location_id)
+        return t && crossrefKey(t) === key
+      })
+    }
+    case 'geography':
+      return props.choroplethFeatures?.find(f => f.properties?.geoid === target.geoid)
+  }
 }
 
 // Where a popup points on a line or an area: a line's middle vertex, an
@@ -1215,88 +1225,64 @@ function anchorOf (geometry: Geometry): PopupPoint | undefined {
     const mid = longest[Math.floor(longest.length / 2)]
     return mid ? { lng: mid[0]!, lat: mid[1]! } : undefined
   }
-  if (g.type === 'Polygon' || g.type === 'MultiPolygon') {
-    const rings: number[][][] = g.type === 'Polygon' ? g.coordinates : g.coordinates.flat()
-    let minX = Infinity
-    let minY = Infinity
-    let maxX = -Infinity
-    let maxY = -Infinity
-    for (const ring of rings) {
-      for (const [x, y] of ring) {
-        minX = Math.min(minX, x!)
-        maxX = Math.max(maxX, x!)
-        minY = Math.min(minY, y!)
-        maxY = Math.max(maxY, y!)
-      }
-    }
-    return Number.isFinite(minX) ? { lng: (minX + maxX) / 2, lat: (minY + maxY) / 2 } : undefined
-  }
-  return undefined
+  const box = isPolygonal(geometry) ? polygonBbox(geometry) : undefined
+  return box ? { lng: (box.sw.lon + box.ne.lon) / 2, lat: (box.sw.lat + box.ne.lat) / 2 } : undefined
 }
 
-function focusOn (feature: Feature[]) {
-  focusFeatures.value = feature
+// Selects a drawn feature as a click on it would, with its popup (an
+// aggregation area has none; the page opens its census panel), and asks the
+// viewer to bring it into view.
+function showFocus (target: CrossrefTarget, feature: Feature) {
+  const at = anchorOf(feature.geometry)
+  let fit = [feature]
+  let popup: PopupFeature | undefined
+  if (at) {
+    switch (target.kind) {
+      case 'stop':
+        popup = stopPopupFeature(String(target.id), at)
+        break
+      case 'route':
+        popup = routePopupFeature(String(target.id), feature.properties || {}, at)
+        break
+      case 'flex':
+        popup = flexPopupFeature(String(feature.id ?? ''), feature.properties || {}, at)
+        break
+      case 'cluster': {
+        const cluster = clusterById.value.get(target.id)
+        if (cluster) {
+          selectedClusterId.value = target.id
+          popup = buildClusterPopup(cluster, at)
+          // The spokes from its anchor reach every member stop.
+          fit = clusterLineFeatures.value.length > 0 ? clusterLineFeatures.value : fit
+        }
+        break
+      }
+    }
+  }
+  popupFeatures.value = popup ? [popup] : []
+  focusFeatures.value = fit
   focusKey.value++
 }
 
-// Selects a feature as a click on it would, with its popup, and brings it
-// into view. A feature the map doesn't draw selects nothing.
-function focusTarget (target: CrossrefTarget) {
-  emit('selectionCleared')
-  focusGeoid.value = null
-  pendingFlex.value = null
-  // Clears a focused cluster, which would hide every other stop.
-  selectedClusterId.value = null
-
-  if (target.kind === 'geography') {
-    popupFeatures.value = []
-    focusGeoid.value = target.geoid
+function showPendingFocus () {
+  const target = pendingFocus.value
+  const feature = target ? featureFor(target) : undefined
+  const shape = (feature?.geometry as { coordinates?: unknown } | undefined)?.coordinates
+  if (!target || !feature || shape === focusedShape) {
     return
   }
+  focusedShape = shape
+  showFocus(target, feature)
+}
 
-  let popup: PopupFeature | undefined
-  let fit: Feature[] = []
-  if (target.kind === 'stop' || target.kind === 'route') {
-    const id = String(target.id)
-    const isRoute = target.kind === 'route'
-    const feature = displayFeatures.value.find(f => String(f.id) === id
-      && (isRoute ? f.geometry.type !== 'Point' : f.geometry.type === 'Point'))
-    const at = feature && anchorOf(feature.geometry)
-    if (feature && at) {
-      popup = isRoute ? routePopupFeature(id, feature.properties || {}, at) : stopPopupFeature(id, at)
-      fit = [feature]
-    }
-  } else if (target.kind === 'cluster') {
-    const visible = visibleClusters.value.find(v => v.cluster.id === target.id)
-    const anchor = clusterAnchorPoints.value.get(target.id)
-    if (visible && anchor) {
-      selectedClusterId.value = target.id
-      popup = buildClusterPopup(visible.cluster, { lng: anchor[0], lat: anchor[1] })
-      fit = [pointFeature(anchor)]
-      for (const sid of visible.cluster.memberStopIds) {
-        const member = stopFeatureLookup.value.get(sid.toString())
-        if (member) {
-          fit.push(pointFeature(member.geometry.coordinates))
-        }
-      }
-    }
-  } else if (target.kind === 'flex') {
-    const feature = flexFeatures.value.find(f => String(f.properties?.location_id) === target.locationId
-      && String(f.properties?.feed_onestop_id) === target.feedOnestopId)
-    const at = feature && anchorOf(feature.geometry)
-    if (feature && at) {
-      popup = flexPopupFeature(String(feature.id ?? ''), feature.properties || {}, at)
-      fit = [feature]
-    } else if (!feature) {
-      // Not drawn yet: flex services were just turned on for it.
-      pendingFlex.value = target
-    }
-  }
-
-  popupFeatures.value = popup ? [popup] : []
-  if (fit.length > 0) {
-    focusOn(fit)
-  }
+function focusTarget (target: CrossrefTarget) {
+  emit('selectionCleared')
+  // Clears a focused cluster, which would hide every other stop.
+  selectedClusterId.value = null
+  popupFeatures.value = []
+  focusedShape = undefined
+  pendingFocus.value = target
+  showPendingFocus()
 }
 
 watch(() => props.focus?.key, () => {
@@ -1304,39 +1290,14 @@ watch(() => props.focus?.key, () => {
     focusTarget(props.focus.target)
   }
 })
-
-// A flex area focused before the map draws flex areas, shown once it does.
-watch([pendingFlex, flexFeatures], ([target, features]) => {
-  if (target && features.some(f => String(f.properties?.location_id) === target.locationId
-    && String(f.properties?.feed_onestop_id) === target.feedOnestopId)) {
-    focusTarget(target)
-  }
-})
-
-// A geography comes into view once its outline is on the map, and again as
-// that outline changes: turning on the overlay first draws the full outline,
-// then the clipped one once the aggregation refetch lands. Followed until the
-// user moves the map or clicks it, or another feature is focused.
-let focusedGeometry: Feature['geometry'] | undefined
-watch([focusGeoid, () => props.choroplethFeatures], ([geoid, features]) => {
-  const feature = geoid ? features?.find(f => f.properties?.geoid === geoid) : undefined
-  if (!feature || feature.geometry === focusedGeometry) {
-    return
-  }
-  focusedGeometry = feature.geometry
-  focusOn([feature])
-})
-watch(focusGeoid, () => {
-  focusedGeometry = undefined
-})
+watch(() => (pendingFocus.value ? featureFor(pendingFocus.value) : undefined), showPendingFocus)
 
 // The selected aggregation area, drawn over everything in the highlight color.
+const NO_FEATURES: Feature[] = []
 const selectedAreaFeatures = computed((): Feature[] => {
   const geoid = props.selectedGeoid
-  if (!geoid) {
-    return []
-  }
-  return (props.choroplethFeatures || []).filter(f => f.properties?.geoid === geoid)
+  const feature = geoid ? featureFor({ kind: 'geography', geoid }) : undefined
+  return feature ? [feature] : NO_FEATURES
 })
 </script>
 

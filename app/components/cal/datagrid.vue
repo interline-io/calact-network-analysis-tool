@@ -155,9 +155,9 @@
             <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
               <!-- Grouped, the first column laid out as its rows are, indented
                    and bold as a heading, the widest either can be. -->
-              <div class="cal-datagrid-shim-cell" :class="{ 'cal-datagrid-group-cell cal-datagrid-shim-group': isGroupColumn(column), 'cal-datagrid-shim-menu': hasRowMenus && isFirstColumn(column) }">
+              <div class="cal-datagrid-shim-cell" :class="{ 'cal-datagrid-group-cell cal-datagrid-shim-group': isGroupColumn(column), 'cal-datagrid-shim-menu': isMenuColumn(column) }">
                 <span v-if="isGroupColumn(column)" class="cal-datagrid-group-indent" />
-                <span v-else-if="hasRowMenus && isFirstColumn(column)" class="cal-datagrid-row-menu-spacer" />
+                <span v-else-if="isMenuColumn(column)" class="cal-datagrid-row-menu-spacer" />
                 <slot
                   :name="`column-${column.key}`"
                   :row="layoutShimRow"
@@ -184,47 +184,42 @@
               <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
                 <!-- An open group's heading leaves its sums to its rows. -->
                 <template v-if="hidesValue(row, column)" />
-                <!-- With row actions, the first cell leads with their menu's
-                     button, so the menu can be found and reached by keyboard;
-                     a row without actions keeps the space, so names line up. -->
-                <span v-else-if="hasRowMenus && isFirstColumn(column)" class="cal-datagrid-row-menu-cell">
-                  <button
-                    v-if="rowActionsOf(row).length > 0"
-                    type="button"
-                    class="cal-datagrid-row-menu-trigger"
-                    aria-haspopup="menu"
-                    :aria-expanded="menuRow === row"
-                    :aria-controls="menuRow === row ? menuId : undefined"
-                    :aria-label="rowMenuLabel(row)"
-                    :title="rowMenuLabel(row)"
-                    @click="onMenuTriggerClick(row, $event)"
-                    @keydown.down.prevent="onMenuTriggerArrow(row, $event)"
-                  >
-                    <cat-icon icon="dots-vertical" size="small" />
-                  </button>
-                  <span v-else class="cal-datagrid-row-menu-spacer" />
-                  <slot
-                    :name="`column-${column.key}`"
-                    :row="row"
-                    :column="column"
-                    :value="row[column.key]"
-                  >
-                    {{ renderCell(column, row[column.key]) }}
-                  </slot>
-                </span>
-                <!-- A group's heading opens and closes the group. -->
-                <span v-else-if="isGroupColumn(column)" class="cal-datagrid-group-cell">
-                  <button
-                    v-if="opensGroup(row)"
-                    type="button"
-                    class="cal-datagrid-group-toggle"
-                    :aria-expanded="!closed.has(groupOf(row))"
-                    :aria-label="`${closed.has(groupOf(row)) ? 'Show' : 'Hide'} rows under ${props.groupLabel?.(row) ?? 'this row'}`"
-                    @click="toggleGroup(groupOf(row))"
-                  >
-                    <cat-icon size="small" :icon="closed.has(groupOf(row)) ? 'chevron-right' : 'chevron-down'" />
-                  </button>
-                  <span v-else :class="isGroupHead(row) ? 'cal-datagrid-group-toggle' : 'cal-datagrid-group-indent'" />
+                <!-- The first cell leads with a control: a group's heading
+                     opens and closes the group; with row actions, the menu's
+                     button, so the menu can be found and reached by keyboard
+                     (a row without actions keeps the space, so names line
+                     up). -->
+                <span v-else-if="isGroupColumn(column) || isMenuColumn(column)" :class="isGroupColumn(column) ? 'cal-datagrid-group-cell' : 'cal-datagrid-row-menu-cell'">
+                  <template v-if="isGroupColumn(column)">
+                    <button
+                      v-if="opensGroup(row)"
+                      type="button"
+                      class="cal-datagrid-group-toggle"
+                      :aria-expanded="!closed.has(groupOf(row))"
+                      :aria-label="`${closed.has(groupOf(row)) ? 'Show' : 'Hide'} rows under ${props.groupLabel?.(row) ?? 'this row'}`"
+                      @click="toggleGroup(groupOf(row))"
+                    >
+                      <cat-icon size="small" :icon="closed.has(groupOf(row)) ? 'chevron-right' : 'chevron-down'" />
+                    </button>
+                    <span v-else :class="isGroupHead(row) ? 'cal-datagrid-group-toggle' : 'cal-datagrid-group-indent'" />
+                  </template>
+                  <template v-else>
+                    <button
+                      v-if="rowActionsOf(row).length > 0"
+                      type="button"
+                      class="cal-datagrid-row-menu-trigger"
+                      aria-haspopup="menu"
+                      :aria-expanded="menuRow === row"
+                      :aria-controls="menuRow === row ? menuId : undefined"
+                      :aria-label="rowMenuLabel(row)"
+                      :title="rowMenuLabel(row)"
+                      @click="onMenuTriggerClick(row, $event)"
+                      @keydown.down.prevent="onMenuTriggerArrow(row, $event)"
+                    >
+                      <cat-icon icon="dots-vertical" size="small" />
+                    </button>
+                    <span v-else class="cal-datagrid-row-menu-spacer" />
+                  </template>
                   <slot
                     :name="`column-${column.key}`"
                     :row="row"
@@ -313,7 +308,6 @@
 import type { ShallowRef } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import { formatCensusValue, toFiniteNumber, type TableColumn, type TableColumnGroup, type TableReport } from '~~/src/core'
-import { pageOfIndex } from '~~/src/scenario'
 
 // What the reader has done to the table: its filter, sort and page. Bound by
 // a page that unmounts the table, as the Reports tab does whenever the map is
@@ -338,8 +332,8 @@ const current = defineModel<number>('current', { default: 1 })
 const view = defineModel<DatagridView>('view')
 
 const emit = defineEmits<{
-  // A reveal was carried out: whether the highlighted row was found.
-  revealed: [found: boolean]
+  // A reveal was carried out.
+  revealed: []
 }>()
 
 function renderCell (column: TableColumn, value: unknown): string {
@@ -831,15 +825,16 @@ onMounted(() => {
   }
 })
 
-function isFirstColumn (column: TableColumn): boolean {
-  return column === tableReport.value?.columns[0]
-}
-
 /////////////////
 // Row actions
 
 // Grouped grids keep their first cell for the group's button.
 const hasRowMenus = computed(() => !!props.rowActions && !props.groupKey)
+
+// The column whose cells lead with a row's menu button.
+function isMenuColumn (column: TableColumn): boolean {
+  return hasRowMenus.value && column === tableReport.value?.columns[0]
+}
 
 function rowActionsOf (row: Record<string, any>): DatagridRowAction[] {
   return hasRowMenus.value ? props.rowActions!(row) : []
@@ -975,9 +970,11 @@ function onMenuKeydown (event: KeyboardEvent) {
   items[next]?.focus()
 }
 
-// A press anywhere else closes the menu; on its own row, the click that
-// follows is then ignored.
-useEventListener(document, 'pointerdown', (event: PointerEvent) => {
+// Listened for only while a menu is open. A press anywhere else closes it;
+// on its own row, the click that follows is then ignored.
+const openMenuDocument = () => (menuRow.value ? document : null)
+const openMenuWindow = () => (menuRow.value ? window : null)
+useEventListener(openMenuDocument, 'pointerdown', (event: PointerEvent) => {
   if (!menuRow.value) {
     return
   }
@@ -988,19 +985,24 @@ useEventListener(document, 'pointerdown', (event: PointerEvent) => {
   dismissedRow = menuRowEl?.contains(target) ? menuRow.value : null
   closeRowMenu()
 }, { capture: true })
-// Placed in the window, the menu would drift from its row once the row
-// moves. A scroll that leaves the row where it was, as one that brought it
-// into view just before the click can arrive after it, keeps the menu.
-useEventListener(window, 'scroll', () => {
+// Placed in the window, the menu moves with its row as the page or the
+// table scrolls, and closes once the row is out of view.
+useEventListener(openMenuWindow, 'scroll', () => {
   if (!menuRowEl) {
     return
   }
   const rect = menuRowEl.getBoundingClientRect()
-  if (Math.abs(rect.top - menuRowAt.top) > 2 || Math.abs(rect.left - menuRowAt.left) > 2) {
+  if (rect.bottom < 0 || rect.top > window.innerHeight) {
     closeRowMenu()
+    return
   }
+  menuPos.value = {
+    top: menuPos.value.top + rect.top - menuRowAt.top,
+    left: menuPos.value.left + rect.left - menuRowAt.left,
+  }
+  menuRowAt = { top: rect.top, left: rect.left }
 }, { capture: true, passive: true })
-useEventListener(window, 'resize', () => closeRowMenu())
+useEventListener(openMenuWindow, 'resize', () => closeRowMenu())
 // Rows that change under an open menu leave it pointing at nothing.
 watch(currentRows, () => closeRowMenu())
 
@@ -1048,14 +1050,14 @@ watch(() => props.revealKey, async (key) => {
     index = indexOfTarget()
   }
   if (index >= 0) {
-    current.value = pageOfIndex(index, props.perPage)
+    current.value = Math.floor(index / props.perPage) + 1
     await nextTick()
     const rowEl = table.value?.querySelector('tbody tr.cal-datagrid-row-highlighted')
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     rowEl?.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' })
     flash(target)
   }
-  emit('revealed', index >= 0)
+  emit('revealed')
 }, { immediate: true, flush: 'post' })
 </script>
 

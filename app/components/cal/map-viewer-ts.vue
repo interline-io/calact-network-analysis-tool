@@ -80,8 +80,8 @@ const { unitSystem, isAllDayMode } = useScenarioDisplay()
 const skipUpdateStages = new Set(['departures'])
 
 let map: (maplibre.Map | undefined) = undefined
-// Whether the map's load event has fired.
-let mapLoaded = false
+// Selected features, and the selected aggregation area, draw in this color.
+const HIGHLIGHT_COLOR = '#00FF00'
 const markerLayer = ref<maplibre.Marker[]>([])
 const clusterMarkerLayer = ref<maplibre.Marker[]>([])
 let geoHoverPopup: maplibre.Popup | undefined
@@ -201,13 +201,7 @@ watch(() => props.focusKey, () => {
   if (!map || !features?.length) {
     return
   }
-  const options = focusPadding(features.every(f => f.geometry.type === 'Point'))
-  fitFeatures(features, options)
-  // Before the map's first load, its load handler fits back to the initial
-  // bounds when it fires, so the focus fits again after it.
-  if (!mapLoaded) {
-    map.once('load', () => fitFeatures(features, options))
-  }
+  fitFeatures(features, focusPadding(features.every(f => f.geometry.type === 'Point')))
 })
 
 // Room for the popup and the sidebar (legend, panels) on the right, within
@@ -279,15 +273,17 @@ function initMap () {
   choroplethTooltip.style.display = 'none'
   map.getContainer().appendChild(choroplethTooltip)
   drawMarkers(markers.value)
+  // The initial view, set here rather than on load: the camera needs no
+  // style, and load can come late (without basemap tiles, not until the first
+  // move), when it would undo a view set since.
+  if (props.panelWidth) {
+    applyPanelPadding(props.panelWidth)
+  }
+  if (props.initialBounds) {
+    const { sw, ne } = props.initialBounds
+    map.fitBounds([[sw.lon, sw.lat], [ne.lon, ne.lat]], { duration: 0, padding: 100 })
+  }
   map.on('load', () => {
-    mapLoaded = true
-    if (props.panelWidth) {
-      applyPanelPadding(props.panelWidth)
-    }
-    if (props.initialBounds) {
-      const { sw, ne } = props.initialBounds
-      map?.fitBounds([[sw.lon, sw.lat], [ne.lon, ne.lat]], { duration: 0, padding: 100 })
-    }
     createSources()
     createLayers()
     updateOverlayFeatures(overlayFeatures.value)
@@ -749,7 +745,7 @@ function createLayers () {
     type: 'fill',
     source: 'selectedArea',
     paint: {
-      'fill-color': '#00FF00',
+      'fill-color': HIGHLIGHT_COLOR,
       'fill-opacity': 0.12,
     }
   })
@@ -758,7 +754,7 @@ function createLayers () {
     type: 'line',
     source: 'selectedArea',
     paint: {
-      'line-color': '#00FF00',
+      'line-color': HIGHLIGHT_COLOR,
       'line-width': 4,
       'line-opacity': 1.0,
     }
@@ -771,7 +767,7 @@ function createLayers () {
     source: 'highlight',
     filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
     paint: {
-      'fill-color': '#00FF00',
+      'fill-color': HIGHLIGHT_COLOR,
       'fill-opacity': 0.2,
     }
   })
@@ -781,7 +777,7 @@ function createLayers () {
     source: 'highlight',
     filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
     paint: {
-      'line-color': '#00FF00',
+      'line-color': HIGHLIGHT_COLOR,
       'line-width': 4,
       'line-opacity': 1.0,
     }
@@ -792,7 +788,7 @@ function createLayers () {
     source: 'highlight',
     filter: ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]],
     paint: {
-      'line-color': '#00FF00',
+      'line-color': HIGHLIGHT_COLOR,
       'line-width': 6,
       'line-opacity': 1.0,
     }
@@ -803,7 +799,7 @@ function createLayers () {
     source: 'highlight',
     filter: ['==', ['geometry-type'], 'Point'],
     paint: {
-      'circle-color': '#00FF00',
+      'circle-color': HIGHLIGHT_COLOR,
       'circle-radius': 14,
       'circle-opacity': 1.0,
       'circle-stroke-color': '#ffffff',
