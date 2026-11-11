@@ -383,6 +383,7 @@ const {
   fareMax,
   fareMin,
   clusterMaxTransferMinutes,
+  flexServicesEnabled,
 } = useScenarioFilters()
 
 definePageMeta({
@@ -1160,13 +1161,16 @@ function seeInTable (target: CrossrefTarget) {
 
 // "See on map": the feature selected and in view, its row kept highlighted
 // for the way back. A geography shows on the aggregation overlay, turned on
-// for it, and opens its census panel.
+// for it, and opens its census panel; a flex area turns on flex services,
+// without which the map draws no flex areas.
 function seeOnMap (target: CrossrefTarget) {
   tableHighlight.value = target
   tableRevealKey.value = undefined
   if (target.kind === 'geography') {
     showAggAreas.value = true
     selectedAggregationGeoid.value = target.geoid
+  } else if (target.kind === 'flex') {
+    flexServicesEnabled.value = true
   }
   mapFocus.value = { target, key: ++crossrefCount }
   activeTab.value = { tab: 'map', sub: '' }

@@ -217,7 +217,6 @@ const props = defineProps<{
 
 const { aggregateLayer, onlyWithStops, dataDisplayMode, isAllDayMode } = useScenarioDisplay()
 const { startDate, endDate, fixedRouteEnabled, stopBufferRadius, stopBufferLayer, geoDatasetName } = useScenarioInputs()
-const { flexServicesEnabled } = useScenarioFilters()
 
 const emit = defineEmits<{
   openBufferDetails: [payload: BufferDetailsPayload]
@@ -248,19 +247,16 @@ const activeTableView = computed({
 const highlightOnTab = computed(() => !!props.highlight && crossrefReportTab(props.highlight) === activeReportTab.value)
 const highlightRowKey = computed(() => highlightOnTab.value ? crossrefKey(props.highlight!) : undefined)
 
-// A row's menu: "See on map", for a feature the map can show (flex areas are
-// drawn only while flex services are on), then what the map popup or census
-// panel offers for the same feature: its trips, its transfers, its census
-// details.
+// A row's menu: "See on map", then what the map popup or census panel offers
+// for the same feature: its trips, its transfers, its census details.
 function rowActions (row: Record<string, any>): DatagridRowAction[] {
   const target = reportRowTarget(activeReportTab.value, row)
   if (!target) {
     return []
   }
-  const actions: DatagridRowAction[] = []
-  if (target.kind !== 'flex' || flexServicesEnabled.value) {
-    actions.push({ label: 'See on map', icon: 'map-marker', run: () => emit('seeOnMap', target) })
-  }
+  const actions: DatagridRowAction[] = [
+    { label: 'See on map', icon: 'map-marker', run: () => emit('seeOnMap', target) },
+  ]
   const tripsAction = (subject: TripSubject): DatagridRowAction =>
     ({ label: 'Show trip information', icon: 'bus-clock', run: () => emit('openTrips', subject) })
   const transfersAction = (subject: TripSubject): DatagridRowAction =>

@@ -920,6 +920,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   // Whatever was selected before is replaced by this click.
   emit('selectionCleared')
   focusGeoid.value = null
+  pendingFlex.value = null
 
   for (const feature of features) {
     const featureId = feature.id?.toString() || ''
@@ -1194,6 +1195,8 @@ const focusKey = ref(0)
 // A geography waiting for its outline, which streams in after the overlay
 // is turned on.
 const focusGeoid = ref<string | null>(null)
+// A flex area focused before the map draws flex areas.
+const pendingFlex = shallowRef<Extract<CrossrefTarget, { kind: 'flex' }> | null>(null)
 
 function pointFeature (coordinates: number[]): Feature {
   return { type: 'Feature', geometry: { type: 'Point', coordinates }, properties: {} } as Feature
@@ -1241,6 +1244,7 @@ function focusOn (feature: Feature[]) {
 function focusTarget (target: CrossrefTarget) {
   emit('selectionCleared')
   focusGeoid.value = null
+  pendingFlex.value = null
   // Clears a focused cluster, which would hide every other stop.
   selectedClusterId.value = null
 
@@ -1283,6 +1287,9 @@ function focusTarget (target: CrossrefTarget) {
     if (feature && at) {
       popup = flexPopupFeature(String(feature.id ?? ''), feature.properties || {}, at)
       fit = [feature]
+    } else if (!feature) {
+      // Not drawn yet: flex services were just turned on for it.
+      pendingFlex.value = target
     }
   }
 
@@ -1295,6 +1302,14 @@ function focusTarget (target: CrossrefTarget) {
 watch(() => props.focus?.key, () => {
   if (props.focus) {
     focusTarget(props.focus.target)
+  }
+})
+
+// A flex area focused before the map draws flex areas, shown once it does.
+watch([pendingFlex, flexFeatures], ([target, features]) => {
+  if (target && features.some(f => String(f.properties?.location_id) === target.locationId
+    && String(f.properties?.feed_onestop_id) === target.feedOnestopId)) {
+    focusTarget(target)
   }
 })
 
