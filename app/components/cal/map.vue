@@ -53,6 +53,7 @@
       :cluster-markers="clusterMarkers"
       :markers="bboxMarkers"
       :popup-features="popupFeatures"
+      :selected-area-features="selectedAreaFeatures"
       :loading-stage="props.loadingStage"
       :panel-width="props.panelWidth"
       :fit-bounds-key="fitBoundsKey"
@@ -131,6 +132,8 @@ const props = defineProps<{
   // it: a Reports row's, from "See on map". A geography is selected by the
   // page; the map brings it into view once its outline is drawn.
   focus?: CrossrefRequest | null
+  // The selected aggregation area, by geoid, highlighted on the map.
+  selectedGeoid?: string | null
 }>()
 
 const { dataDisplayMode, hideUnmarked } = useScenarioDisplay()
@@ -887,6 +890,10 @@ let extentFromUser = false
 
 function mapMove (v: any) {
   extentFromUser ||= !!v.userInitiated
+  // The user has taken over the view from a focused geography.
+  if (v.userInitiated) {
+    focusGeoid.value = null
+  }
   const b = v.bbox
   extentBbox.value = {
     valid: true,
@@ -1291,13 +1298,30 @@ watch(() => props.focus?.key, () => {
   }
 })
 
-// A geography is in view once its outline is on the map.
+// A geography comes into view once its outline is on the map, and again as
+// that outline changes: turning on the overlay first draws the full outline,
+// then the clipped one once the aggregation refetch lands. Followed until the
+// user moves the map or clicks it, or another feature is focused.
+let focusedGeometry: Feature['geometry'] | undefined
 watch([focusGeoid, () => props.choroplethFeatures], ([geoid, features]) => {
   const feature = geoid ? features?.find(f => f.properties?.geoid === geoid) : undefined
-  if (feature) {
-    focusGeoid.value = null
-    focusOn([feature])
+  if (!feature || feature.geometry === focusedGeometry) {
+    return
   }
+  focusedGeometry = feature.geometry
+  focusOn([feature])
+})
+watch(focusGeoid, () => {
+  focusedGeometry = undefined
+})
+
+// The selected aggregation area, drawn over everything in the highlight color.
+const selectedAreaFeatures = computed((): Feature[] => {
+  const geoid = props.selectedGeoid
+  if (!geoid) {
+    return []
+  }
+  return (props.choroplethFeatures || []).filter(f => f.properties?.geoid === geoid)
 })
 </script>
 

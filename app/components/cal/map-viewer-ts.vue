@@ -49,6 +49,8 @@ const clusterLineFeatures = defineModel<Feature[]>('clusterLineFeatures', { defa
 const clusterMarkers = defineModel<{ id: string, point: Point, colors: string[] }[]>('clusterMarkers', { default: () => [] })
 const markers = defineModel<MarkerFeature[]>('markers', { default: () => [] })
 const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: () => [] })
+// The selected aggregation area, highlighted on top as a popup's feature is.
+const selectedAreaFeatures = defineModel<Feature[]>('selectedAreaFeatures', { default: () => [] })
 const mapClass = defineModel<string>('mapClass', { default: 'short' })
 const center = defineModel<Point>('center', { default: () => ({ lon: -122.4194, lat: 37.7749 }) })
 const zoom = defineModel<number>('zoom', { default: 12 })
@@ -120,6 +122,10 @@ watch(() => markers.value, (v) => {
 
 watch(() => popupFeatures.value, (v) => {
   drawPopupFeatures(v)
+})
+
+watch(() => selectedAreaFeatures.value, (v) => {
+  setSourceData('selectedArea', v, isPolygon)
 })
 
 // Skip feature updates during heavy loading stages (departures) to prevent browser crashes
@@ -287,6 +293,7 @@ function initMap () {
     updateOverlayFeatures(overlayFeatures.value)
     updateStopBufferFeatures(stopBufferFeatures.value)
     updateChoroplethFeatures(choroplethFeatures.value)
+    setSourceData('selectedArea', selectedAreaFeatures.value, isPolygon)
     updateSelectableGeographies(selectableGeographies.value)
     updateFeatures(features.value)
     updateFlexFeatures(flexFeatures.value)
@@ -498,6 +505,10 @@ function createSources () {
   })
   // Highlight source for selected features
   map?.addSource('highlight', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
+  map?.addSource('selectedArea', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
@@ -731,12 +742,34 @@ function createLayers () {
     }
   })
 
+  // The selected aggregation area, in the highlight color, over the routes
+  // and stops so it reads as selected; a light fill leaves its shade visible.
+  map?.addLayer({
+    id: 'selected-area-fill',
+    type: 'fill',
+    source: 'selectedArea',
+    paint: {
+      'fill-color': '#00FF00',
+      'fill-opacity': 0.12,
+    }
+  })
+  map?.addLayer({
+    id: 'selected-area-outline',
+    type: 'line',
+    source: 'selectedArea',
+    paint: {
+      'line-color': '#00FF00',
+      'line-width': 4,
+      'line-opacity': 1.0,
+    }
+  })
+
   // Highlight layers for selected features (rendered on top)
   map?.addLayer({
     id: 'highlight-polygon',
     type: 'fill',
     source: 'highlight',
-    filter: ['==', ['geometry-type'], 'Polygon'],
+    filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
     paint: {
       'fill-color': '#00FF00',
       'fill-opacity': 0.2,
@@ -746,7 +779,7 @@ function createLayers () {
     id: 'highlight-polygon-outline',
     type: 'line',
     source: 'highlight',
-    filter: ['==', ['geometry-type'], 'Polygon'],
+    filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
     paint: {
       'line-color': '#00FF00',
       'line-width': 4,
@@ -757,7 +790,7 @@ function createLayers () {
     id: 'highlight-line',
     type: 'line',
     source: 'highlight',
-    filter: ['==', ['geometry-type'], 'LineString'],
+    filter: ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]],
     paint: {
       'line-color': '#00FF00',
       'line-width': 6,

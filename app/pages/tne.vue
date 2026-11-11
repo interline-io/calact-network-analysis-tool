@@ -158,6 +158,7 @@
           :sidebar-panel-open="!!tripPanelSubject || !!selectedPanelData?.row"
           :clear-selection-key="mapSelectionClearKey"
           :focus="mapFocus"
+          :selected-geoid="selectedAggregationGeoid"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
