@@ -1278,16 +1278,16 @@ useClusterRefetch({
 // Once the scenario finishes loading, drop a Transfer Analyst subject it
 // lacks (from a link for another area or older data, say), with its stop
 // edits. Check the stops and clusters as loaded, not as filtered, so a
-// subject that a filter leaves without service stays.
-watch(() => [scenarioData.value, scenarioData.value?.stops.length, scenarioData.value?.stopClusters?.length, scenarioFilterResult.value, runInFlight.value, refetchInFlight.value] as const, ([data, _stops, _clusters, result, running, refetching]) => {
+// subject that a filter leaves without service stays. So does a stop the
+// duplicate route collapse hides: the analyst shows it with no stops picked,
+// and it comes back with its stop edits when the collapse no longer hides it.
+watch(() => [scenarioData.value, scenarioData.value?.stops.length, scenarioData.value?.stopClusters?.length, runInFlight.value, refetchInFlight.value] as const, ([data, _stops, _clusters, running, refetching]) => {
   const subject = transferSubjectFromKey(transferSubject.value)
   if (!subject || !data || running > 0 || refetching > 0) {
     return
   }
-  // A filter only unmarks a stop, but the duplicate route collapse removes the
-  // stops a hidden copy alone serves, so a stop must also be in the result.
   const known = subject.kind === 'stop'
-    ? data.stops.some(s => s.id === subject.stopId) && (!result || result.stops.some(s => s.id === subject.stopId))
+    ? data.stops.some(s => s.id === subject.stopId)
     : subject.kind === 'cluster' && (data.stopClusters ?? []).some(c => c.id === subject.clusterId)
   if (!known) {
     transferSubject.value = ''
