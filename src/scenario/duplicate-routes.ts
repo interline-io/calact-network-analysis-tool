@@ -39,22 +39,26 @@
  * export sees one copy.
  */
 
-import { StopDepartureCache, RouteDepartureIndex, type StopTimeCacheItem } from '~~/src/tl/departure-cache'
-import type { RouteGql, StopGql } from '~~/src/tl'
+import { StopDepartureCache, type StopTimeCacheItem } from '~~/src/tl/departure-cache'
+import { routesById, type RouteGql, type RouteTripRelationship, type StopGql } from '~~/src/tl'
+import { groupBy } from '~~/src/core/collections'
 
 // How a hidden copy relates to the kept route it runs in.
 //   same-trips: each runs the other's trips
 //   subset:     its trips are among the kept route's, which runs more
 export type DuplicateRouteRelationship = 'same-trips' | 'subset'
 
-export interface CollapsedRoute {
-  routeId: number
-  // The kept routes its trips run in, most matched trips first.
-  keptRouteIds: number[]
+// A route's trips running in another's, over the compared dates.
+interface RunsIn {
   relationship: DuplicateRouteRelationship
-  // Over the compared dates, against the first kept route.
   matchedTrips: number
   trips: number
+}
+
+// A hidden copy, against the first of the kept routes its trips run in.
+export interface CollapsedRoute extends RunsIn {
+  // The kept routes its trips run in, most matched trips first.
+  keptRouteIds: number[]
 }
 
 // A route as the collapse summary names it.
@@ -65,12 +69,9 @@ export interface CollapsedRouteRef {
   feedOnestopId: string
 }
 
-export interface CollapsedRouteSummary {
+export interface CollapsedRouteSummary extends RunsIn {
   route: CollapsedRouteRef
   kept: CollapsedRouteRef[]
-  relationship: DuplicateRouteRelationship
-  matchedTrips: number
-  trips: number
 }
 
 function feedOf (route: RouteGql): string {
@@ -91,10 +92,22 @@ export function duplicateDetectionAvailable (routes: RouteGql[]): boolean {
   return routes.some(r => Array.isArray(r.similar_routes))
 }
 
-interface RunsIn {
-  relationship: DuplicateRouteRelationship
-  matchedTrips: number
-  trips: number
+// From a route's side, the relationships in which its trips run in the
+// other's, and those in which the other's run in its own.
+const RUNS_IN: Partial<Record<RouteTripRelationship, DuplicateRouteRelationship>> = { SAME_TRIPS: 'same-trips', SUBSET: 'subset' }
+const RUN_IN_BY: Partial<Record<RouteTripRelationship, DuplicateRouteRelationship>> = { SAME_TRIPS: 'same-trips', SUPERSET: 'subset' }
+const relationshipOf = (table: typeof RUNS_IN, rel: string | null | undefined) => rel ? table[rel as RouteTripRelationship] : undefined
+
+// Set outer[a][b] unless it is already set: a route's first report wins.
+function setFirst<K, V> (outer: Map<number, Map<K, V>>, a: number, b: K, value: V) {
+  let inner = outer.get(a)
+  if (!inner) {
+    inner = new Map<K, V>()
+    outer.set(a, inner)
+  }
+  if (!inner.has(b)) {
+    inner.set(b, value)
+  }
 }
 
 /**
@@ -107,19 +120,12 @@ export function findDuplicateRoutes (
   marked: (routeId: number) => boolean,
 ): Map<number, CollapsedRoute> {
   const ret = new Map<number, CollapsedRoute>()
-  const byId = new Map(routes.map(r => [r.id, r]))
+  const byId = routesById(routes)
 
   // runsIn.get(a)?.get(b): a's trips run in b's.
   const runsIn = new Map<number, Map<number, RunsIn>>()
   // runsInFeed.get(a)?.get(feed): a's trips run in that feed's rows together.
   const runsInFeed = new Map<number, Map<string, RunsIn>>()
-  const setRunsIn = (a: number, b: number, v: RunsIn) => {
-    const m = runsIn.get(a) || new Map<number, RunsIn>()
-    if (!m.has(b)) {
-      m.set(b, v)
-    }
-    runsIn.set(a, m)
-  }
   const tripsOf = new Map<number, number>()
   const parent = new Map<number, number>()
   // Routes joined to another, through either kind of relationship.
@@ -131,11 +137,6 @@ export function findDuplicateRoutes (
     }
     parent.set(x, p)
     return p
-  }
-  const join = (a: number, b: number) => {
-    parent.set(find(a), find(b))
-    linked.add(a)
-    linked.add(b)
   }
   for (const route of routes) {
     for (const s of route.similar_routes || []) {
@@ -149,30 +150,28 @@ export function findDuplicateRoutes (
       if (s.other_trips != null) {
         tripsOf.set(other.id, s.other_trips)
       }
-      const matched = s.matched_trips ?? 0
-      if (s.relationship === 'SAME_TRIPS' || s.relationship === 'SUBSET') {
-        setRunsIn(route.id, other.id, { relationship: s.relationship === 'SAME_TRIPS' ? 'same-trips' : 'subset', matchedTrips: matched, trips: s.trips ?? 0 })
+      const matchedTrips = s.matched_trips ?? 0
+      const into = relationshipOf(RUNS_IN, s.relationship)
+      const by = relationshipOf(RUN_IN_BY, s.relationship)
+      const intoFeed = relationshipOf(RUNS_IN, s.feed_relationship)
+      const byFeed = relationshipOf(RUN_IN_BY, s.feed_relationship)
+      if (into) {
+        setFirst(runsIn, route.id, other.id, { relationship: into, matchedTrips, trips: s.trips ?? 0 })
       }
-      if (s.relationship === 'SAME_TRIPS' || s.relationship === 'SUPERSET') {
-        setRunsIn(other.id, route.id, { relationship: s.relationship === 'SAME_TRIPS' ? 'same-trips' : 'subset', matchedTrips: matched, trips: s.other_trips ?? 0 })
+      if (by) {
+        setFirst(runsIn, other.id, route.id, { relationship: by, matchedTrips, trips: s.other_trips ?? 0 })
       }
-      if (s.relationship === 'SAME_TRIPS' || s.relationship === 'SUBSET' || s.relationship === 'SUPERSET') {
-        join(route.id, other.id)
+      if (intoFeed) {
+        setFirst(runsInFeed, route.id, feedOf(other), { relationship: intoFeed, matchedTrips: s.feed_matched_trips ?? 0, trips: s.trips ?? 0 })
       }
-      const feedRel = s.feed_relationship
-      if (feedRel === 'SAME_TRIPS' || feedRel === 'SUBSET') {
-        const m = runsInFeed.get(route.id) || new Map<string, RunsIn>()
-        if (!m.has(feedOf(other))) {
-          m.set(feedOf(other), { relationship: feedRel === 'SAME_TRIPS' ? 'same-trips' : 'subset', matchedTrips: s.feed_matched_trips ?? 0, trips: s.trips ?? 0 })
-        }
-        runsInFeed.set(route.id, m)
-      }
-      if (feedRel === 'SAME_TRIPS' || feedRel === 'SUBSET' || feedRel === 'SUPERSET') {
-        join(route.id, other.id)
+      if (into || by || intoFeed || byFeed) {
+        parent.set(find(route.id), find(other.id))
+        linked.add(route.id)
+        linked.add(other.id)
       }
     }
   }
-  if (runsIn.size === 0 && runsInFeed.size === 0) {
+  if (linked.size === 0) {
     return ret
   }
 
@@ -180,31 +179,18 @@ export function findDuplicateRoutes (
   const feedAgencies = new Map<string, Set<number>>()
   const feedRoutes = new Map<string, number>()
   const feedStart = new Map<string, string>()
-  for (const route of routes) {
-    const feed = feedOf(route)
-    feedRoutes.set(feed, (feedRoutes.get(feed) || 0) + 1)
-    const start = route.feed_version?.earliest_calendar_date || ''
-    if (start > (feedStart.get(feed) || '')) {
-      feedStart.set(feed, start)
-    }
-    const agencies = feedAgencies.get(feed) || new Set<number>()
-    agencies.add(route.agency?.id)
-    feedAgencies.set(feed, agencies)
+  for (const [feed, feedRouteList] of groupBy(routes, feedOf)) {
+    feedRoutes.set(feed, feedRouteList.length)
+    feedAgencies.set(feed, new Set(feedRouteList.map(r => r.agency?.id)))
+    feedStart.set(feed, feedRouteList.reduce((latest, r) => {
+      const start = r.feed_version?.earliest_calendar_date || ''
+      return start > latest ? start : latest
+    }, ''))
   }
 
-  const groups = new Map<number, RouteGql[]>()
-  for (const id of linked) {
-    const route = byId.get(id)
-    if (route) {
-      const root = find(id)
-      groups.set(root, [...(groups.get(root) || []), route])
-    }
-  }
-  for (const group of groups.values()) {
-    const byFeed = new Map<string, RouteGql[]>()
-    for (const route of group) {
-      byFeed.set(feedOf(route), [...(byFeed.get(feedOf(route)) || []), route])
-    }
+  for (const ids of groupBy(linked, find).values()) {
+    const group = ids.map(id => byId.get(id)!)
+    const byFeed = groupBy(group, feedOf)
     if (byFeed.size < 2) {
       continue
     }
@@ -217,7 +203,8 @@ export function findDuplicateRoutes (
       || trips(b) - trips(a)
       || (feedRoutes.get(b) || 0) - (feedRoutes.get(a) || 0)
       || compareCodePoints(a, b))
-    const kept = new Set(byFeed.get(feeds[0]!)!.map(r => r.id))
+    const keptFeed = feeds[0]!
+    const kept = new Set(byFeed.get(keptFeed)!.map(r => r.id))
     for (const route of group) {
       if (kept.has(route.id)) {
         continue
@@ -226,26 +213,13 @@ export function findDuplicateRoutes (
         .filter(([other]) => kept.has(other))
         .sort(([ia, a], [ib, b]) => b.matchedTrips - a.matchedTrips || ia - ib)
       if (into.length > 0) {
-        const [, first] = into[0]!
-        ret.set(route.id, {
-          routeId: route.id,
-          keptRouteIds: into.map(([other]) => other),
-          relationship: first.relationship,
-          matchedTrips: first.matchedTrips,
-          trips: first.trips,
-        })
+        ret.set(route.id, { ...into[0]![1], keptRouteIds: into.map(([other]) => other) })
         continue
       }
       // No single kept row covers it; the kept feed's rows together may.
-      const together = runsInFeed.get(route.id)?.get(feeds[0]!)
+      const together = runsInFeed.get(route.id)?.get(keptFeed)
       if (together) {
-        ret.set(route.id, {
-          routeId: route.id,
-          keptRouteIds: [...kept].sort((a, b) => a - b),
-          relationship: together.relationship,
-          matchedTrips: together.matchedTrips,
-          trips: together.trips,
-        })
+        ret.set(route.id, { ...together, keptRouteIds: [...kept].sort((a, b) => a - b) })
       }
     }
   }
@@ -258,10 +232,9 @@ export interface DuplicateRouteCollapse {
   // Stops without those served only by hidden copies, and with hidden copies
   // left out of every remaining stop's route_stops.
   stops: StopGql[]
-  // Departures without the hidden copies' trips, and the route index built
-  // from them. The same objects for as long as the same copies are hidden.
+  // Departures without the hidden copies' trips. The same object for as long as
+  // the same copies are hidden and no departures arrive.
   stopDepartureCache: StopDepartureCache
-  routeIndex: RouteDepartureIndex
 }
 
 function routeRef (route: RouteGql): CollapsedRouteRef {
@@ -273,17 +246,18 @@ function routeRef (route: RouteGql): CollapsedRouteRef {
   }
 }
 
-// The departures with hidden copies removed, per scenario cache and set of
-// hidden routes, so refiltering without changing what is hidden hands views the
-// same cache and index: views that watch the cache for a new scenario (the
-// Transfer Analyst) would otherwise reset on every filter edit.
-const collapsedCaches = new WeakMap<StopDepartureCache, { key: string, cache: StopDepartureCache, index: RouteDepartureIndex }>()
+// The departures with hidden copies removed, per scenario cache, so refiltering
+// without changing what is hidden hands views the same cache: views that watch
+// the cache for a new scenario (the Transfer Analyst) would otherwise reset on
+// every filter edit. Keyed on the source's version as well as the hidden
+// routes, since a streaming scenario adds departures to the same cache.
+const collapsedCaches = new WeakMap<StopDepartureCache, { key: string, cache: StopDepartureCache }>()
 
-function collapsedDepartures (source: StopDepartureCache, collapsed: Map<number, CollapsedRoute>, touched: Map<number, boolean>): { cache: StopDepartureCache, index: RouteDepartureIndex } {
-  const key = [...collapsed.keys()].sort((a, b) => a - b).join(',')
+function collapsedDepartures (source: StopDepartureCache, collapsed: Map<number, CollapsedRoute>, touched: Map<number, boolean>): StopDepartureCache {
+  const key = `${source.version}:${[...collapsed.keys()].sort((a, b) => a - b).join(',')}`
   const memo = collapsedCaches.get(source)
   if (memo && memo.key === key) {
-    return memo
+    return memo.cache
   }
   // Only stops a hidden copy serves carry its departures, so only those need a
   // filtered copy; the rest share the scenario's own date maps.
@@ -311,9 +285,8 @@ function collapsedDepartures (source: StopDepartureCache, collapsed: Map<number,
       cache.cache.delete(stopId)
     }
   }
-  const ret = { key, cache, index: RouteDepartureIndex.fromCache(cache) }
-  collapsedCaches.set(source, ret)
-  return ret
+  collapsedCaches.set(source, { key, cache })
+  return cache
 }
 
 /**
@@ -329,17 +302,12 @@ export function collapseDuplicateRoutes (
   if (collapsed.size === 0) {
     return undefined
   }
-  const routeById = new Map(data.routes.map(r => [r.id, r]))
-  const summaries: CollapsedRouteSummary[] = []
-  for (const c of collapsed.values()) {
-    summaries.push({
-      route: routeRef(routeById.get(c.routeId)!),
-      kept: c.keptRouteIds.map(id => routeRef(routeById.get(id)!)),
-      relationship: c.relationship,
-      matchedTrips: c.matchedTrips,
-      trips: c.trips,
-    })
-  }
+  const routeById = routesById(data.routes)
+  const summaries: CollapsedRouteSummary[] = [...collapsed].map(([id, { keptRouteIds, ...runsIn }]) => ({
+    ...runsIn,
+    route: routeRef(routeById.get(id)!),
+    kept: keptRouteIds.map(k => routeRef(routeById.get(k)!)),
+  }))
   summaries.sort((a, b) =>
     compareCodePoints(a.route.agencyName, b.route.agencyName)
     || compareCodePoints(a.route.name, b.route.name)
@@ -359,6 +327,5 @@ export function collapseDuplicateRoutes (
       stops.push({ ...stop, route_stops: remaining })
     }
   }
-  const { cache, index } = collapsedDepartures(data.stopDepartureCache, collapsed, touched)
-  return { collapsed, summaries, stops, stopDepartureCache: cache, routeIndex: index }
+  return { collapsed, summaries, stops, stopDepartureCache: collapsedDepartures(data.stopDepartureCache, collapsed, touched) }
 }

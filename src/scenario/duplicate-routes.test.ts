@@ -17,27 +17,15 @@ const config: ScenarioConfig = {
 const DATES = ['2024-01-15', '2024-01-16', '2024-01-17', '2024-01-18', '2024-01-19']
 const H = 3600
 
-// What Route.similar_routes reported for a route: another route, the
-// relationship from this route's side, and the trip counts.
-interface Similar {
-  id: number
-  rel: RouteTripRelationship
-  trips: number
-  other: number
-  matched: number
-}
-
-function makeRoute (id: number, feed: string, agencyId: number, similar?: Similar[]): RouteGql {
+function makeRoute (id: number, feed: string, agencyId: number): RouteGql {
   return {
     id,
-    onestop_id: 'r-9rbj-shared',
     route_id: `route-${id}`,
     route_short_name: `R${id}`,
     route_long_name: '',
     route_type: 3,
     agency: { id: agencyId, agency_id: `agency-${agencyId}`, agency_name: `Agency ${agencyId}` },
     feed_version: { sha1: `sha1-${feed}`, feed: { onestop_id: feed } },
-    similar_routes: similar?.map(s => ({ route: { id: s.id }, relationship: s.rel, trips: s.trips, other_trips: s.other, matched_trips: s.matched })),
   }
 }
 
@@ -48,6 +36,14 @@ function pair (a: RouteGql, b: RouteGql, rel: RouteTripRelationship, tripsA: num
   const relB = back[rel] || rel
   a.similar_routes = [...(a.similar_routes || []), { route: { id: b.id }, relationship: rel, trips: tripsA, other_trips: tripsB, matched_trips: matched, feed_relationship: rel, feed_trips: tripsB, feed_matched_trips: matched }]
   b.similar_routes = [...(b.similar_routes || []), { route: { id: a.id }, relationship: relB, trips: tripsB, other_trips: tripsA, matched_trips: matched, feed_relationship: relB, feed_trips: tripsA, feed_matched_trips: matched }]
+}
+
+// Route 1 in f-a and route 2 in f-b, running the same 5 trips.
+function sameTripsPair (): [RouteGql, RouteGql] {
+  const a = makeRoute(1, 'f-a', 1)
+  const b = makeRoute(2, 'f-b', 2)
+  pair(a, b, 'SAME_TRIPS', 5, 5, 5)
+  return [a, b]
 }
 
 function makeStop (id: number, feed: string, routes: Array<[routeId: number, agencyId: number]>): StopGql {
@@ -150,27 +146,25 @@ describe('duplicate route collapse', () => {
 
   it('keeps an agency\'s newer timetable over an older copy with more trips', () => {
     // Island Transit's own feed starts its current timetable in September; a
-    // copy published elsewhere still has the older one, whose trips include
-    // all of the newer route's. Both feeds have one agency.
-    const own = makeRoute(1, 'f-own', 1)
-    const older = makeRoute(2, 'f-copy', 2)
-    own.feed_version.earliest_calendar_date = '2026-09-27'
-    older.feed_version.earliest_calendar_date = '2025-06-01'
-    pair(own, older, 'SUBSET', 95, 147, 95)
-    const result = applyScenarioResultFilter(makeData([own, older], []), config, {})
-    // The newer edition is kept, and the older copy, which runs trips it no
-    // longer does, stays visible beside it.
+    // copy published elsewhere still has the older one. Both feeds have one
+    // agency.
+    const run = (rel: RouteTripRelationship, ownTrips: number, olderTrips: number) => {
+      const own = makeRoute(1, 'f-own', 1)
+      const older = makeRoute(2, 'f-copy', 2)
+      own.feed_version.earliest_calendar_date = '2026-09-27'
+      older.feed_version.earliest_calendar_date = '2025-06-01'
+      pair(own, older, rel, ownTrips, olderTrips, Math.min(ownTrips, olderTrips))
+      return applyScenarioResultFilter(makeData([own, older], []), config, {})
+    }
+    // The older copy's trips include all of the newer route's: the newer
+    // edition is kept, and the older copy, which runs trips it no longer does,
+    // stays visible beside it.
+    const result = run('SUBSET', 95, 147)
     expect(result.routes).toHaveLength(2)
     expect(result.collapsedRoutes).toEqual([])
 
     // When the newer edition runs everything the older one did, the older is hidden.
-    const own2 = makeRoute(1, 'f-own', 1)
-    const older2 = makeRoute(2, 'f-copy', 2)
-    own2.feed_version.earliest_calendar_date = '2026-09-27'
-    older2.feed_version.earliest_calendar_date = '2025-06-01'
-    pair(own2, older2, 'SUPERSET', 147, 95, 95)
-    const result2 = applyScenarioResultFilter(makeData([own2, older2], []), config, {})
-    expect(result2.collapsedRoutes[0]).toMatchObject({ route: { id: 2, feedOnestopId: 'f-copy' }, kept: [{ id: 1 }] })
+    expect(run('SUPERSET', 147, 95).collapsedRoutes[0]).toMatchObject({ route: { id: 2, feedOnestopId: 'f-copy' }, kept: [{ id: 1 }] })
   })
 
   it('never collapses partial, disjoint or no-trips relationships', () => {
@@ -196,10 +190,8 @@ describe('duplicate route collapse', () => {
   })
 
   it('collapses real copies even when an unrelated route shares their Onestop ID', () => {
-    const a = makeRoute(1, 'f-a', 1)
-    const b = makeRoute(2, 'f-b', 2)
+    const [a, b] = sameTripsPair()
     const unrelated = makeRoute(3, 'f-c', 3)
-    pair(a, b, 'SAME_TRIPS', 5, 5, 5)
     pair(a, unrelated, 'DISJOINT', 5, 40, 0)
     pair(b, unrelated, 'DISJOINT', 5, 40, 0)
     const result = applyScenarioResultFilter(makeData([a, b, unrelated], []), config, {})
@@ -244,9 +236,7 @@ describe('duplicate route collapse', () => {
   })
 
   it('leaves a shared stop in place, without the hidden copy or its departures', () => {
-    const a = makeRoute(1, 'f-a', 1)
-    const b = makeRoute(2, 'f-b', 2)
-    pair(a, b, 'SAME_TRIPS', 5, 5, 5)
+    const [a, b] = sameTripsPair()
     const cache = new StopDepartureCache()
     addTrips(cache, 1, [10], [8 * H], 100)
     addTrips(cache, 2, [20], [8 * H], 200)
@@ -262,29 +252,29 @@ describe('duplicate route collapse', () => {
     const stop20 = result.stops.find(s => s.id === 20)!
     expect(stop20.route_stops).toEqual([{ route_id: 4, agency_id: 2 }])
     expect(stop20.visits?.total.visit_count).toBe(2 * DATES.length)
-    // The route index the views read has no trips of the hidden copy.
-    expect(result.routeIndex?.getRouteDate(2, 0, DATES[0]!).size).toBe(0)
-    expect(result.routeIndex?.getRouteDate(4, 0, DATES[0]!).size).toBe(1)
+    expect(result.stopDepartureCache.get(20, DATES[0]!).map(st => st.routeId)).toEqual([4, 4])
   })
 
   it('hands back the same departures for as long as the same copies are hidden', () => {
-    const a = makeRoute(1, 'f-a', 1)
-    const b = makeRoute(2, 'f-b', 2)
-    pair(a, b, 'SAME_TRIPS', 5, 5, 5)
+    const [a, b] = sameTripsPair()
     const cache = new StopDepartureCache()
     addTrips(cache, 1, [10], [8 * H], 100)
     addTrips(cache, 2, [20], [8 * H], 200)
-    const data = makeData([a, b, makeRoute(3, 'f-a', 1)], [makeStop(10, 'f-a', [[1, 1]]), makeStop(20, 'f-b', [[2, 2]])], cache)
+    const data = makeData([a, b, makeRoute(3, 'f-a', 1)], [makeStop(10, 'f-a', [[1, 1]]), makeStop(20, 'f-b', [[2, 2]]), makeStop(30, 'f-a', [[3, 1]])], cache)
     const first = applyScenarioResultFilter(data, config, {})
     const second = applyScenarioResultFilter(data, config, { frequencyUnder: 60 })
     expect(second.stopDepartureCache).toBe(first.stopDepartureCache)
-    expect(second.routeIndex).toBe(first.routeIndex)
+
+    // A streaming scenario adds departures to the same cache after the routes
+    // have arrived; the next run sees them.
+    expect(first.stopDepartureCache.get(30, DATES[0]!)).toEqual([])
+    addTrips(cache, 3, [30], [9 * H], 300)
+    const third = applyScenarioResultFilter(data, config, {})
+    expect(third.stopDepartureCache.get(30, DATES[0]!)).toHaveLength(1)
   })
 
   it('drops a stop cluster that was cross-agency only through a hidden copy', () => {
-    const a = makeRoute(1, 'f-a', 1)
-    const b = makeRoute(2, 'f-b', 2)
-    pair(a, b, 'SAME_TRIPS', 5, 5, 5)
+    const [a, b] = sameTripsPair()
     const cluster: StopCluster = {
       id: 'cluster-1',
       anchorStopId: 10,
@@ -300,9 +290,7 @@ describe('duplicate route collapse', () => {
   })
 
   it('shows every copy when turned off, and reports when there was nothing to detect from', () => {
-    const a = makeRoute(1, 'f-a', 1)
-    const b = makeRoute(2, 'f-b', 2)
-    pair(a, b, 'SAME_TRIPS', 5, 5, 5)
+    const [a, b] = sameTripsPair()
     const off = applyScenarioResultFilter(makeData([a, b], []), config, { collapseDuplicateRoutes: false })
     expect(off.routes).toHaveLength(2)
     expect(off.collapsedRoutes).toEqual([])

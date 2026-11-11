@@ -469,7 +469,7 @@ const agencyData = computed((): AgencyData[] => collectAgencies(props.scenarioFi
 // result, so turning the collapse on or off moves no other agency's color.
 const agencyColorScale = computed(() => {
   const loaded = props.scenarioFilterResult?.loaded
-  const agencies = loaded ? collectAgencies(loaded.stops, routesById(loaded.routes)) : agencyData.value
+  const agencies = collectAgencies(loaded?.stops ?? [], routesById(loaded?.routes ?? []))
   return createCategoryColorScale(agencies.map(a => String(a.numericId)), categoricalColors)
 })
 

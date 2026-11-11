@@ -660,9 +660,9 @@ export function applyScenarioResultFilter (
   config: ScenarioConfig,
   filter: ScenarioFilter
 ): ScenarioFilterResult {
-  // Every route's departures, for the route stats. Hidden copies' stats are
-  // computed and dropped, which leaves each kept route's own unchanged.
-  const allRouteIndex = RouteDepartureIndexClass.fromCache(data.stopDepartureCache)
+  // Departures by route. Built before the duplicate route collapse, whose
+  // hidden copies' entries are simply never looked up: every lookup is by route.
+  const routeIndex = RouteDepartureIndexClass.fromCache(data.stopDepartureCache)
   const selectedDateRangeValue = getSelectedDateRange(config)
   const selectedWeekdayModeValue = filter.selectedWeekdayMode
   const selectedDaysValue = filter.selectedWeekdays
@@ -720,7 +720,7 @@ export function applyScenarioResultFilter (
       selectedAgenciesValue,
       frequencyUnderValue,
       frequencyOverValue,
-      allRouteIndex,
+      routeIndex,
       fareFilterValue,
     )
     return route
@@ -735,7 +735,6 @@ export function applyScenarioResultFilter (
     : collapseDuplicateRoutes(data, id => markedById.get(id) ?? false)
   const routeFeatures = collapse ? allRouteFeatures.filter(r => !collapse.collapsed.has(r.id)) : allRouteFeatures
   const sdCache = collapse?.stopDepartureCache ?? data.stopDepartureCache
-  const routeIndex = collapse?.routeIndex ?? allRouteIndex
   const markedRoutes = new Set(routeFeatures.filter(r => r.marked).map(r => r.id))
 
   // Apply stop filters
