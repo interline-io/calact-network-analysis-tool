@@ -35,6 +35,9 @@ export class StopTimeCacheItem {
 // StopTimeCacheItem[]. The primary structure for departure lookups by stop.
 export class StopDepartureCache {
   cache: Map<number, Map<string, StopTimeCacheItem[]>> = new Map()
+  // Counts additions, so something derived from the cache can tell that a
+  // streaming scenario has added departures to it since.
+  version = 0
 
   get (id: number, date: string): StopTimeCacheItem[] {
     const a = this.cache.get(id) || new Map()
@@ -59,6 +62,7 @@ export class StopDepartureCache {
     }
     a.set(date, b)
     this.cache.set(id, a)
+    this.version++
   }
 
   // Add a departure straight from wire-format values, skipping the
@@ -69,6 +73,7 @@ export class StopDepartureCache {
     b.push(new StopTimeCacheItem(departureTime, tripId, directionId, routeId, pickupType))
     a.set(date, b)
     this.cache.set(stopId, a)
+    this.version++
   }
 
   hasService (id: number, date: string): boolean {

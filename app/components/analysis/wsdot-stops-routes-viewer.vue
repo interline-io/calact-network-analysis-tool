@@ -1,5 +1,18 @@
 <template>
   <div>
+    <cat-msg
+      v-if="report.collapsedRoutes.length > 0"
+      :title="`Duplicate routes: ${report.collapsedRoutes.length} hidden`"
+      variant="dark"
+      expandable
+      :open="false"
+      class="mt-4"
+    >
+      <p class="is-size-7 mb-2">
+        Copies of routes kept from another feed are left out of the stops, routes and agencies, as in the browse reports.
+      </p>
+      <cal-duplicate-routes-list :routes="report.collapsedRoutes" />
+    </cat-msg>
     <!-- Tabbed Interface -->
     <div class="mt-4">
       <cat-tabs v-model="activeTab" expanded>

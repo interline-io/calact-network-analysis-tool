@@ -17,6 +17,10 @@ export interface RoutesPhaseConfig {
   // Fetch each route's shape. Defaults to true; the map needs it. Off for
   // consumers that only classify routes, since it is 98% of the response.
   includeGeometry?: boolean
+  // Service dates (YYYY-MM-DD, at most 7) to compare each route with its
+  // copies in other feeds on (Route.similar_routes). Omitted, routes carry no
+  // copies and the duplicate route collapse has nothing to work from.
+  similarRouteDates?: string[]
 }
 
 export interface RoutesPhaseResult {
@@ -37,9 +41,12 @@ export async function runRoutesPhase (
     if (ids.length === 0) {
       return
     }
+    const similarDates = config.similarRouteDates ?? []
     const response = await client.query<{ routes: RouteGql[] }>(routeQuery, {
       ids,
       include_geometry: config.includeGeometry !== false,
+      include_similar: similarDates.length > 0,
+      similar_dates: similarDates.length > 0 ? similarDates : null,
     })
     const routeData = response.data?.routes || []
 

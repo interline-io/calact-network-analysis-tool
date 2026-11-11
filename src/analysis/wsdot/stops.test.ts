@@ -93,3 +93,13 @@ describe('WSDOTStopCollector', () => {
     expect(collector.gtfsIds()).toEqual(new Map([[1, 's1'], [2, 's2']]))
   })
 })
+
+describe('WSDOTStopCollector.remove', () => {
+  it('drops the given stops from the records and the frequency domain', () => {
+    const collector = new WSDOTStopCollector()
+    collector.add([stop(1), stop(2), stop(3)])
+    collector.remove([1, 3, 99])
+    expect(collector.all.map(r => r.id)).toEqual([2])
+    expect([...collector.gtfsIds().keys()]).toEqual([2])
+  })
+})

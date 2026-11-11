@@ -53,6 +53,14 @@
  *    threshold that excludes no stop leaves the route set unchanged.
  *
  * 4. Agencies are derived from the filtered stops and routes
+ *
+ * Between steps 1 and 2, copies of a route published in more than one feed are
+ * hidden (duplicate-routes.ts), unless collapseDuplicateRoutes is false. The
+ * copy kept is one that passes the route filters, so this runs after routes are
+ * marked. Hidden copies are removed rather than unmarked: they leave the
+ * routes, the stops they alone serve, the remaining stops' route_stops and the
+ * departures, so counts, reports, the map, exports and stop clusters all see
+ * one copy.
  */
 
 import { format } from 'date-fns'
@@ -74,8 +82,10 @@ import {
 } from './route-headway'
 import {
   deriveFilteredStopClusters,
+  restrictClustersToStops,
   type StopCluster,
 } from './phases/stop-clusters'
+import { collapseDuplicateRoutes, duplicateDetectionAvailable, type CollapsedRouteSummary } from './duplicate-routes'
 import { stopVisits } from './stop-visits'
 import {
   type Weekday,
@@ -93,7 +103,9 @@ import type {
   AgencyGql,
   FeedVersion,
   Route,
+  RouteGql,
   Stop,
+  StopGql,
   StopDepartureCache,
   StopVisitCounts,
   FlexAreaFeature,
@@ -632,6 +644,15 @@ export interface ScenarioFilterResult {
   // cross-agency transfer-hub clusters, after the client-side max-transfer
   // -time prune. Populated only when the scenario ran with clustering enabled.
   stopClusters?: StopCluster[]
+  // Route copies hidden as duplicates of a route kept from another feed.
+  // Empty when the collapse is off or found nothing.
+  collapsedRoutes: CollapsedRouteSummary[]
+  // Whether the routes carry Transitland's comparison of copies, so the
+  // collapse could look for any; false before routes load.
+  duplicateDetectionAvailable: boolean
+  // The stops and routes as loaded, before the collapse hides any copies, for
+  // whatever must not change when copies are hidden: the map's agency colors.
+  loaded: { stops: StopGql[], routes: RouteGql[] }
 }
 
 export function applyScenarioResultFilter (
@@ -639,8 +660,9 @@ export function applyScenarioResultFilter (
   config: ScenarioConfig,
   filter: ScenarioFilter
 ): ScenarioFilterResult {
-  const sdCache = data.stopDepartureCache
-  const routeIndex = RouteDepartureIndexClass.fromCache(sdCache)
+  // Departures by route. Built before the duplicate route collapse, whose
+  // hidden copies' entries are simply never looked up: every lookup is by route.
+  const routeIndex = RouteDepartureIndexClass.fromCache(data.stopDepartureCache)
   const selectedDateRangeValue = getSelectedDateRange(config)
   const selectedWeekdayModeValue = filter.selectedWeekdayMode
   const selectedDaysValue = filter.selectedWeekdays
@@ -665,7 +687,7 @@ export function applyScenarioResultFilter (
   const stopFiltersActive = stopVisitsUnderValue != null || stopVisitsOverValue != null
 
   // Apply route filters
-  const routeFeatures = data.routes.map((routeGql): Route => {
+  const allRouteFeatures = data.routes.map((routeGql): Route => {
     const fare = data.routeFares?.get(routeGql.id)
     const route: Route = {
       ...routeGql,
@@ -703,10 +725,20 @@ export function applyScenarioResultFilter (
     )
     return route
   })
+
+  // Hide duplicate route copies once routes are marked, since the copy kept is
+  // one that passes the current filters, and before stops, departures, agencies
+  // and clusters are derived from what remains.
+  const markedById = new Map(allRouteFeatures.map(r => [r.id, r.marked]))
+  const collapse = filter.collapseDuplicateRoutes === false
+    ? undefined
+    : collapseDuplicateRoutes(data, id => markedById.get(id) ?? false)
+  const routeFeatures = collapse ? allRouteFeatures.filter(r => !collapse.collapsed.has(r.id)) : allRouteFeatures
+  const sdCache = collapse?.stopDepartureCache ?? data.stopDepartureCache
   const markedRoutes = new Set(routeFeatures.filter(r => r.marked).map(r => r.id))
 
   // Apply stop filters
-  const stopFeatures = data.stops.map((stopGql): Stop => {
+  const stopFeatures = (collapse?.stops ?? data.stops).map((stopGql): Stop => {
     const stop: Stop = {
       ...stopGql,
       marked: true,
@@ -832,7 +864,7 @@ export function applyScenarioResultFilter (
   // Pure time arithmetic over the already-loaded departure cache, so it re-runs
   // here (no refetch) whenever the user changes the transfer-time input.
   const stopClusters = deriveFilteredStopClusters(
-    data.stopClusters,
+    collapse ? restrictClustersToStops(data.stopClusters, stopFeatures) : data.stopClusters,
     filter.clusterMaxTransferMinutes,
     stopFeatures,
     sdCache,
@@ -858,6 +890,9 @@ export function applyScenarioResultFilter (
     agencyBufferGeographies: data.agencyBufferGeographies,
     aggregationBufferGeographies: data.aggregationBufferGeographies,
     stopClusters,
+    collapsedRoutes: collapse?.summaries ?? [],
+    duplicateDetectionAvailable: duplicateDetectionAvailable(data.routes),
+    loaded: { stops: data.stops, routes: data.routes },
   }
   return result
 }

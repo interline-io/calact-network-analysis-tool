@@ -1,5 +1,6 @@
 export * from './scenario'
 export * from './scenario-filter'
+export * from './duplicate-routes'
 export * from './progress-stream'
 export * from './phases'
 export * from './phase-progress'

@@ -316,7 +316,8 @@ function anyWithin (a: number[], b: number[], maxGap: number): boolean {
  * departure at another currently-kept member. Pruning iterates to a fixed point
  * so removing a member can cascade to members whose only partner it was. After
  * pruning, clusters with fewer than 2 members / 2 agencies are dropped, and the
- * surviving clusters' agency/route id sets are re-derived from the kept members.
+ * surviving clusters' agency/route id sets are re-derived from the kept members,
+ * with the lowest kept member as anchor if the anchor was pruned.
  *
  * When `maxTransferMinutes` is falsy the clusters are returned unchanged.
  *
@@ -369,35 +370,68 @@ export function applyClusterTransferTime (
         }
       }
     }
-    if (kept.size < MIN_CLUSTER_MEMBERS) {
-      continue
+    const next = withMembers(cluster, [...kept], stopMeta)
+    if (next) {
+      result.push(next)
     }
-    const memberStopIds = [...kept].sort((a, b) => a - b)
-    const agencyIds = new Set<number>()
-    const routeIds = new Set<number>()
-    for (const id of memberStopIds) {
-      const meta = stopMeta.get(id)
-      if (!meta) {
-        continue
-      }
-      for (const a of meta.agencyIds) {
-        agencyIds.add(a)
-      }
-      for (const r of meta.routeIds) {
-        routeIds.add(r)
-      }
-    }
-    if (agencyIds.size < 2) {
-      continue
-    }
-    result.push({
-      ...cluster,
-      memberStopIds,
-      agencyIds: [...agencyIds].sort((a, b) => a - b),
-      routeIds: [...routeIds].sort((a, b) => a - b),
-    })
   }
   return result
+}
+
+// The cluster with only the given members, its agencies and routes recounted
+// from them, or undefined once it no longer has two members serving two
+// agencies. The anchor stays when it remains; otherwise the lowest member takes
+// over, since the map draws the cluster around a stop it holds.
+function withMembers (cluster: StopCluster, memberStopIds: number[], stopMeta: Map<number, StopClusterMeta>): StopCluster | undefined {
+  if (memberStopIds.length < MIN_CLUSTER_MEMBERS) {
+    return undefined
+  }
+  const agencyIds = new Set<number>()
+  const routeIds = new Set<number>()
+  for (const id of memberStopIds) {
+    const meta = stopMeta.get(id)
+    meta?.agencyIds.forEach(a => agencyIds.add(a))
+    meta?.routeIds.forEach(r => routeIds.add(r))
+  }
+  if (agencyIds.size < 2) {
+    return undefined
+  }
+  const members = [...memberStopIds].sort((a, b) => a - b)
+  return {
+    ...cluster,
+    anchorStopId: members.includes(cluster.anchorStopId) ? cluster.anchorStopId : members[0]!,
+    memberStopIds: members,
+    agencyIds: [...agencyIds].sort((a, b) => a - b),
+    routeIds: [...routeIds].sort((a, b) => a - b),
+  }
+}
+
+// Restrict the proximity clusters to the given stops, after the duplicate route
+// collapse has removed stops served only by hidden copies and dropped those
+// copies from the rest of the stops' route_stops. Agencies and routes are
+// recounted from what remains, so a hub that only looked cross-agency because
+// one route was published in two feeds goes.
+//
+// This filters the server's members rather than rebuilding the clusters, which
+// would need the neighbor lists the cluster phase does not keep. The server
+// picks one member per agency, so where a removed member was picked over
+// another stop of its agency in reach, the cluster loses that agency here even
+// though a rebuilt one would keep it through the other stop.
+export function restrictClustersToStops (clusters: StopCluster[] | undefined, stops: Stop[]): StopCluster[] | undefined {
+  if (!clusters?.length) {
+    return clusters
+  }
+  const stopById = new Map<number, Stop>(stops.map(s => [s.id, s]))
+  const stopMeta = new Map<number, StopClusterMeta>()
+  for (const cluster of clusters) {
+    for (const id of cluster.memberStopIds) {
+      const stop = stopById.get(id)
+      if (stop) {
+        stopMeta.set(id, stopRouteAgencyIds(stop.route_stops))
+      }
+    }
+  }
+  return clusters.flatMap(c => withMembers(c, c.memberStopIds.filter(id => stopMeta.has(id)), stopMeta) ?? [])
 }
 
 // Build the temporal-prune inputs (per-stop departure seconds + agency/route

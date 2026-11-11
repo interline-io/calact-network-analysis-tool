@@ -349,6 +349,11 @@ export const STOP_CLUSTER_NEAR_MAX_RADIUS = 1000
 // said to be near it.
 export const CLUSTER_NEAR_MIN_FEEDS = 2
 
+// Duplicate route collapse (src/scenario/duplicate-routes.ts): the most service
+// dates Transitland's Route.similar_routes compares a route's copies on. The
+// routes phase passes the scenario's first this-many dates.
+export const SIMILAR_ROUTE_MAX_DATES = 7
+
 // Seeded when the user ticks a Fixed-Route Services threshold: route frequency
 // (minutes between trips) and stop visits (total visits during the filtered
 // period). Starting points only; the user edits the number in place.

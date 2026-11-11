@@ -21,6 +21,16 @@
           </p>
         </div>
       </div>
+      <div class="level-item has-text-centered">
+        <div>
+          <p class="heading">
+            Duplicate Routes
+          </p>
+          <p class="title is-6">
+            {{ wsdotReportConfig.collapseDuplicateRoutes === false ? 'Shown' : `${wsdotReport.collapsedRoutes.length} hidden` }}
+          </p>
+        </div>
+      </div>
       <div v-if="wsdotReportConfig.stopBufferRadius" class="level-item has-text-centered">
         <div>
           <p class="heading">
@@ -73,6 +83,19 @@
               Percent of population in bounding box
             </cat-radio>
           </cat-field>
+        </cat-msg>
+        <cat-msg
+          v-if="wsdotReport.collapsedRoutes.length > 0"
+          :title="`Duplicate routes: ${wsdotReport.collapsedRoutes.length} hidden`"
+          variant="dark"
+          expandable
+          :open="false"
+          class="mt-4"
+        >
+          <p class="is-size-7 mb-2">
+            Copies of routes kept from another feed are left out of the levels and the stop table, as in the browse reports.
+          </p>
+          <cal-duplicate-routes-list :routes="wsdotReport.collapsedRoutes" />
         </cat-msg>
         <!-- Frequency Levels Section -->
         <cat-field label="Stops by Frequency Level">

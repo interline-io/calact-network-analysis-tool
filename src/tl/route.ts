@@ -9,7 +9,7 @@ import { fareReportFields, type FareReportFields, type RouteFareSummary } from '
 //////////
 
 export const routeQuery = gql`
-query Routes($ids: [Int!], $where: RouteFilter, $include_geometry: Boolean! = true) {
+query Routes($ids: [Int!], $where: RouteFilter, $include_geometry: Boolean! = true, $include_similar: Boolean! = false, $similar_dates: [Date!]) {
   routes(limit: 1000, ids: $ids, where: $where) {
     id
     route_id
@@ -29,9 +29,29 @@ query Routes($ids: [Int!], $where: RouteFilter, $include_geometry: Boolean! = tr
     geometry @include(if: $include_geometry)
     feed_version {
       sha1
+      # When the version's timetable starts: the duplicate route collapse keeps
+      # a newer edition over an older copy.
+      earliest_calendar_date
       feed {
         onestop_id
       }
+    }
+    # Copies of this route published by other feeds, with their trips compared
+    # on the scenario's first week; the result filter collapses duplicates on
+    # it (src/scenario/duplicate-routes.ts).
+    similar_routes(where: {service_dates: $similar_dates}) @include(if: $include_similar) {
+      route {
+        id
+      }
+      trips
+      other_trips
+      matched_trips
+      relationship
+      # The same against all of the candidate feed's rows together, for a
+      # feed that splits one route into several rows.
+      feed_trips
+      feed_matched_trips
+      feed_relationship
     }
     agency {
       id
@@ -62,14 +82,37 @@ export interface RouteGtfs {
   continuous_drop_off?: number
 }
 
+// How a route's trips compare with a similar route's, from the route's side
+// (Transitland's RouteTripRelationship). Open to new values.
+export type RouteTripRelationship = 'SAME_TRIPS' | 'SUBSET' | 'SUPERSET' | 'PARTIAL' | 'DISJOINT' | 'NO_TRIPS' | 'OTHER_NO_TRIPS'
+
+// A route in another feed sharing this route's Onestop ID, as
+// Route.similar_routes reports it. The counts are over the compared dates.
+export interface SimilarRouteGql {
+  route: { id: number }
+  trips?: number | null
+  other_trips?: number | null
+  matched_trips?: number | null
+  relationship?: RouteTripRelationship | string | null
+  // Against all of the candidate feed's similar routes together; the same on
+  // each of that feed's entries.
+  feed_trips?: number | null
+  feed_matched_trips?: number | null
+  feed_relationship?: RouteTripRelationship | string | null
+}
+
 export type RouteGql = {
   id: number
   // Absent when the routes phase ran with includeGeometry off.
   geometry?: GeoJSON.MultiLineString
+  // Absent when the routes phase was not asked to compare copies.
+  similar_routes?: SimilarRouteGql[] | null
   // routeQuery selects every agency field, and the agency CSV exports them.
   agency: AgencyGql
   feed_version: {
     sha1: string
+    // YYYY-MM-DD; absent from routes fetched by older queries.
+    earliest_calendar_date?: string | null
     feed: {
       onestop_id: string
     }

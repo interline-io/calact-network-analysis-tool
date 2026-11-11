@@ -2,9 +2,11 @@
 # the GTFS/census dumps are bind-mounted and restored on start, so refreshing
 # fixtures never means rebuilding this.
 FROM golang:1.26-bookworm AS build
-# Pinned to the v1.4.0 commit for reproducibility: the first release with
-# `exclude` on the census stop buffer, which the outside clip needs.
-ARG TRANSITLAND_REF=bc22d04c48e56521e74be86296d3e1360844a072
+# Pinned to a commit for reproducibility: Route.similar_routes, which the
+# duplicate route collapse reads (interline-io/transitland-lib#846). Until that
+# merges this is its branch's commit; move it to the merge commit or the next
+# release once it lands.
+ARG TRANSITLAND_REF=15aa4fddc27f7a933837fa263469f69dc301e08f
 # Built from a checkout rather than `go install pkg@version`: transitland-lib's
 # go.mod carries a replace directive, which go install rejects unless the module
 # is the main module. CGO stays on — without it build constraints exclude the

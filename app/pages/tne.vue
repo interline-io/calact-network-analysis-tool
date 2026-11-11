@@ -370,6 +370,7 @@ const {
   fareMax,
   fareMin,
   clusterMaxTransferMinutes,
+  collapseDuplicateRoutes,
 } = useScenarioFilters()
 
 definePageMeta({
@@ -897,6 +898,7 @@ const scenarioFilter = computed((): ScenarioFilter => ({
   fareMax: fareMax.value,
   fareMin: fareMin.value,
   clusterMaxTransferMinutes: clusterMaxTransferMinutes.value,
+  collapseDuplicateRoutes: collapseDuplicateRoutes.value,
 }))
 
 // Internal state for streaming scenario data (scenarioData is defined earlier).
@@ -1276,7 +1278,9 @@ useClusterRefetch({
 // Once the scenario finishes loading, drop a Transfer Analyst subject it
 // lacks (from a link for another area or older data, say), with its stop
 // edits. Check the stops and clusters as loaded, not as filtered, so a
-// subject that a filter leaves without service stays.
+// subject that a filter leaves without service stays. So does a stop the
+// duplicate route collapse hides: the analyst shows it with no stops picked,
+// and it comes back with its stop edits when the collapse no longer hides it.
 watch(() => [scenarioData.value, scenarioData.value?.stops.length, scenarioData.value?.stopClusters?.length, runInFlight.value, refetchInFlight.value] as const, ([data, _stops, _clusters, running, refetching]) => {
   const subject = transferSubjectFromKey(transferSubject.value)
   if (!subject || !data || running > 0 || refetching > 0) {
@@ -1394,6 +1398,16 @@ const filterTags = computed((): FilterTag[] => {
   }
   tags.push(fareAmountTag(scenarioFilter.value.fareMin, scenarioFilter.value.fareMax))
 
+  // duplicate route copies (on by default, so "Shown" is the active state)
+  const collapsedCount = scenarioFilterResult.value?.collapsedRoutes.length ?? 0
+  if (scenarioFilter.value.collapseDuplicateRoutes === false) {
+    tags.push({ label: 'Duplicate routes', value: 'Shown', active: true })
+  } else if (collapsedCount > 0) {
+    tags.push({ label: 'Duplicate routes', value: `${collapsedCount} hidden`, active: true })
+  } else if (scenarioFilterResult.value?.duplicateDetectionAvailable) {
+    tags.push({ label: 'Duplicate routes', value: 'None found', active: false })
+  }
+
   // agencies
   const agencies = scenarioFilter.value.selectedAgencies
   if (agencies == null || agencies.length === 0) {
@@ -1457,6 +1471,7 @@ async function resetFilters () {
     frequencyOver: undefined,
     stopVisitsUnder: undefined,
     stopVisitsOver: undefined,
+    collapseDuplicateRoutes: undefined,
     // Retired with the "single routes" toggle; cleared so it does not linger
     // in bookmarked or shared URLs.
     calculateFrequencyMode: undefined,

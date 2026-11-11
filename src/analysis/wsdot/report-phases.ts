@@ -17,6 +17,7 @@ import {
 } from '~~/src/core'
 import {
   phaseDone,
+  type CollapsedRouteSummary,
   type ScenarioConfig,
   type ScenarioPhaseName,
   type ScenarioProgress,
@@ -45,6 +46,9 @@ export interface WSDOTReportConfig extends ScenarioConfig {
   geoDatasetName: string
   geoDatasetLayer: string
   routeHourCompatMode: boolean
+  // Hide copies of routes kept from another feed, as the browse does
+  // (src/analysis/wsdot/duplicates.ts). On unless false.
+  collapseDuplicateRoutes?: boolean
 }
 
 // The declared phase plan for both WSDOT reports: the fetch phases they read,
@@ -96,6 +100,8 @@ export interface WSDOTReport {
   // map overlay asks: the outlines weigh more than everything else in a level
   // rollup put together, and the overlay is off by default.
   levelGeometry: Record<string, Geometry[]>
+  // Copies of routes kept from another feed, left out of the report.
+  collapsedRoutes: CollapsedRouteSummary[]
 }
 
 // One stop-table row, with per-level qualification flags.
@@ -143,6 +149,8 @@ export interface WSDOTReportPartialData {
   wsdotBboxIntersection?: GeographyDataFeature[]
   // Buffer-clipped outlines, chunked; each entry carries one level.
   wsdotLevelGeometry?: { level: string, geometry: Geometry[] }[]
+  // The copies of routes the report left out, in one event.
+  wsdotCollapsedRoutes?: CollapsedRouteSummary[]
 }
 
 // ScenarioProgress with the report's payloads layered onto partialData.

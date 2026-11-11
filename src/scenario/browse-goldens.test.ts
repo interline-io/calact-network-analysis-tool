@@ -54,6 +54,8 @@ const config: ScenarioConfig = {
 }
 
 let filtered: ScenarioFilterResult
+// The same data with the duplicate route collapse off.
+let uncollapsed: ScenarioFilterResult
 let dates: Date[]
 
 beforeAll(async () => {
@@ -63,6 +65,7 @@ beforeAll(async () => {
   )
   const data = await runScenarioFetcher(noopController(), config, client)
   filtered = applyScenarioResultFilter(data, config, {})
+  uncollapsed = applyScenarioResultFilter(data, config, { collapseDuplicateRoutes: false })
   dates = getSelectedDateRange(config)
 }, 300000)
 
@@ -82,7 +85,18 @@ function dailyCounts (routeId: string): { dir0: number[], dir1: number[] } {
 // Recorded from this implementation against the fixture dumps. They move when
 // the dumps are rebuilt; re-record deliberately, by reading what changed in
 // the feeds, rather than pasting what a run printed.
-const GOLDEN_COUNTS = { routes: 56, stops: 177, agencies: 10, dates: 7 }
+//
+// Collapsing duplicate routes (on by default) hides one route and one stop
+// here: Columbia County Rider's route 1 is in both its own feed and Tillamook's,
+// running the same trips, and Tillamook's copy goes with the one stop in the
+// area that only it serves. With the collapse off the routes and stops are one
+// higher each.
+const GOLDEN_COUNTS = { routes: 55, stops: 176, agencies: 10, dates: 7 }
+const GOLDEN_COLLAPSED = [{
+  route: { name: '1', agencyName: 'Columbia County Rider', feedOnestopId: 'f-c20-tillamook~or~us' },
+  kept: [{ name: '1', agencyName: 'Columbia County Rider', feedOnestopId: 'f-c20-columbiacountyrider' }],
+  relationship: 'same-trips',
+}]
 
 // Departures per day for the three busiest routes, Monday through Sunday. The
 // weekday/weekend structure is visible in the numbers, so a date range that
@@ -111,6 +125,17 @@ describe('browse goldens (integration)', () => {
       agencies: filtered.agencies.length,
       dates: dates.length,
     }).toEqual(GOLDEN_COUNTS)
+  })
+
+  it('collapses the pinned duplicate routes, and only those', () => {
+    expect(filtered.collapsedRoutes).toMatchObject(GOLDEN_COLLAPSED)
+    expect(filtered.collapsedRoutes).toHaveLength(GOLDEN_COLLAPSED.length)
+    expect({
+      routes: uncollapsed.routes.length,
+      stops: uncollapsed.stops.length,
+      agencies: uncollapsed.agencies.length,
+    }).toEqual({ routes: GOLDEN_COUNTS.routes + 1, stops: GOLDEN_COUNTS.stops + 1, agencies: GOLDEN_COUNTS.agencies })
+    expect(uncollapsed.collapsedRoutes).toEqual([])
   })
 
   it('computes the pinned departures per day for the busiest routes', () => {

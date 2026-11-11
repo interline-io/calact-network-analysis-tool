@@ -1,6 +1,27 @@
 <template>
   <aside class="cal-service-levels menu">
     <p class="menu-label">
+      <cat-tooltip text="The same route can be published in more than one feed. A copy is hidden when another feed's copy, sharing its route Onestop ID, runs the same trips or more; it then leaves every report, count, map layer and export, and the WSDOT reports run afterwards. Copies that run different trips stay.">
+        Duplicate routes
+        <cat-icon icon="information" />
+      </cat-tooltip>
+    </p>
+    <cat-field>
+      <cat-checkbox
+        v-model="collapseDuplicateRoutes"
+        label="Hide copies of routes kept from another feed"
+      />
+    </cat-field>
+    <cal-duplicate-routes-list
+      v-if="collapseDuplicateRoutes && collapsedRoutes.length > 0"
+      :routes="collapsedRoutes"
+      class="mb-4"
+    />
+    <p v-else-if="collapseDuplicateRoutes && detectionAvailable" class="is-size-7 mb-4">
+      None found
+    </p>
+
+    <p class="menu-label">
       Route frequency
     </p>
 
@@ -275,7 +296,14 @@ const {
   stopVisitsUnder,
   stopVisitsOver,
   clusterMaxTransferMinutes,
+  collapseDuplicateRoutes,
 } = useScenarioFilters()
+
+const collapsedRoutes = computed(() => props.scenarioFilterResult?.collapsedRoutes ?? [])
+
+// Whether the routes carry Transitland's comparison of copies, so that
+// finding none means none.
+const detectionAvailable = computed(() => props.scenarioFilterResult?.duplicateDetectionAvailable ?? false)
 
 // Emptying a field to retype it keeps the current value (see keepValueWhenEmptied).
 const setFrequencyUnder = keepValueWhenEmptied(frequencyUnder)
