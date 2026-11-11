@@ -64,16 +64,24 @@ const config: WSDOTReportConfig = {
   routeHourCompatMode: true,
 }
 
-// One run, shared by every assertion below.
+// One run, shared by every assertion below, and one with the duplicate route
+// collapse turned off.
 let report: WSDOTReport
+let uncollapsed: WSDOTReport
 
 beforeAll(async () => {
-  const client = new BasicGraphQLClient(
+  // A client per run: each run hooks the client's request-error reporting,
+  // which two runs at once on one client would cross.
+  const client = () => new BasicGraphQLClient(
     (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
     apiFetch(''),
   )
-  const { wsdotResult } = await runAnalysis(noopController(), config, client)
-  report = wsdotResult
+  const [on, off] = await Promise.all([
+    runAnalysis(noopController(), config, client()),
+    runAnalysis(noopController(), { ...config, collapseDuplicateRoutes: false }, client()),
+  ])
+  report = on.wsdotResult
+  uncollapsed = off.wsdotResult
 }, 300000)
 
 function levelCounts (stops: WSDOTStopResult[]): Record<LevelKey, number> {
@@ -90,7 +98,12 @@ function levelCounts (stops: WSDOTStopResult[]): Record<LevelKey, number> {
 // reading what changed in the feeds — never by pasting whatever the run
 // printed, which would turn this file into a record of the current behaviour
 // rather than a check on it.
-const GOLDEN_STOP_COUNT = 177
+//
+// Columbia County Rider's route 1 is in both its own feed and Tillamook's,
+// running the same 8 trips, so Tillamook's copy is hidden (see
+// ../../scenario/duplicate-routes.ts), and with it the one stop only it serves,
+// a level 6 stop: 177 stops and 155 at level 6 with the collapse turned off.
+const GOLDEN_STOP_COUNT = 176
 
 const GOLDEN_LEVEL_COUNTS: Record<LevelKey, number> = {
   level1: 9,
@@ -98,7 +111,7 @@ const GOLDEN_LEVEL_COUNTS: Record<LevelKey, number> = {
   level3: 123,
   level4: 143,
   level5: 148,
-  level6: 155,
+  level6: 154,
   levelNights: 7,
 }
 
@@ -130,6 +143,15 @@ describe('WSDOT report goldens (integration)', () => {
 
   it('classifies the pinned number of stops at each service level', () => {
     expect(levelCounts(report.stops)).toEqual(GOLDEN_LEVEL_COUNTS)
+  })
+
+  it('hides the duplicate route, and shows it when the collapse is off', () => {
+    expect(report.collapsedRoutes.map(c => [c.route.name, c.route.feedOnestopId, c.kept[0]?.feedOnestopId, c.relationship])).toEqual([
+      ['1', 'f-c20-tillamook~or~us', 'f-c20-columbiacountyrider', 'same-trips'],
+    ])
+    expect(uncollapsed.collapsedRoutes).toEqual([])
+    expect(uncollapsed.stops).toHaveLength(GOLDEN_STOP_COUNT + 1)
+    expect(levelCounts(uncollapsed.stops)).toEqual({ ...GOLDEN_LEVEL_COUNTS, level6: GOLDEN_LEVEL_COUNTS.level6 + 1 })
   })
 
   it('classifies known stops the same way', () => {

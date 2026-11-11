@@ -35,8 +35,9 @@
  * or in all of the kept feed's rows in the group together.
  *
  * Applied in the result filter after routes are marked and before stops,
- * departures and clusters are derived, so every report, count, map layer and
- * export sees one copy.
+ * departures and clusters are derived, so every browse report, count, map layer
+ * and export sees one copy; and in the WSDOT reports, which take the copies out
+ * of their own folded records (src/analysis/wsdot/duplicates.ts).
  */
 
 import { StopDepartureCache, type StopTimeCacheItem } from '~~/src/tl/departure-cache'
@@ -290,6 +291,48 @@ function collapsedDepartures (source: StopDepartureCache, collapsed: Map<number,
 }
 
 /**
+ * The hidden copies as the collapse lists them, by agency and route name.
+ */
+export function collapsedRouteSummaries (routes: RouteGql[], collapsed: Map<number, CollapsedRoute>): CollapsedRouteSummary[] {
+  const routeById = routesById(routes)
+  const summaries: CollapsedRouteSummary[] = [...collapsed].map(([id, { keptRouteIds, ...runsIn }]) => ({
+    ...runsIn,
+    route: routeRef(routeById.get(id)!),
+    kept: keptRouteIds.map(k => routeRef(routeById.get(k)!)),
+  }))
+  return summaries.sort((a, b) =>
+    compareCodePoints(a.route.agencyName, b.route.agencyName)
+    || compareCodePoints(a.route.name, b.route.name)
+    || a.route.id - b.route.id)
+}
+
+/**
+ * The stops without those only hidden routes serve, and with hidden routes left
+ * out of the rest's route_stops. `touched` maps each stop a hidden route served
+ * to whether it was removed.
+ */
+export function withoutCollapsedRoutes<T extends Pick<StopGql, 'id' | 'route_stops'>> (
+  stops: T[],
+  hidden: { has: (routeId: number) => boolean },
+): { stops: T[], touched: Map<number, boolean> } {
+  const kept: T[] = []
+  const touched = new Map<number, boolean>()
+  for (const stop of stops) {
+    const routeStops = stop.route_stops || []
+    if (!routeStops.some(rs => hidden.has(rs.route_id))) {
+      kept.push(stop)
+      continue
+    }
+    const remaining = routeStops.filter(rs => !hidden.has(rs.route_id))
+    touched.set(stop.id, remaining.length === 0)
+    if (remaining.length > 0) {
+      kept.push({ ...stop, route_stops: remaining })
+    }
+  }
+  return { stops: kept, touched }
+}
+
+/**
  * Hide duplicate copies of routes from the stops and departures the result
  * filter works from. Undefined when there is nothing to hide, so the caller
  * keeps the scenario data as it is.
@@ -302,30 +345,11 @@ export function collapseDuplicateRoutes (
   if (collapsed.size === 0) {
     return undefined
   }
-  const routeById = routesById(data.routes)
-  const summaries: CollapsedRouteSummary[] = [...collapsed].map(([id, { keptRouteIds, ...runsIn }]) => ({
-    ...runsIn,
-    route: routeRef(routeById.get(id)!),
-    kept: keptRouteIds.map(k => routeRef(routeById.get(k)!)),
-  }))
-  summaries.sort((a, b) =>
-    compareCodePoints(a.route.agencyName, b.route.agencyName)
-    || compareCodePoints(a.route.name, b.route.name)
-    || a.route.id - b.route.id)
-
-  const stops: StopGql[] = []
-  const touched = new Map<number, boolean>() // stop id -> removed
-  for (const stop of data.stops) {
-    const routeStops = stop.route_stops || []
-    if (!routeStops.some(rs => collapsed.has(rs.route_id))) {
-      stops.push(stop)
-      continue
-    }
-    const remaining = routeStops.filter(rs => !collapsed.has(rs.route_id))
-    touched.set(stop.id, remaining.length === 0)
-    if (remaining.length > 0) {
-      stops.push({ ...stop, route_stops: remaining })
-    }
+  const { stops, touched } = withoutCollapsedRoutes(data.stops, collapsed)
+  return {
+    collapsed,
+    summaries: collapsedRouteSummaries(data.routes, collapsed),
+    stops,
+    stopDepartureCache: collapsedDepartures(data.stopDepartureCache, collapsed, touched),
   }
-  return { collapsed, summaries, stops, stopDepartureCache: collapsedDepartures(data.stopDepartureCache, collapsed, touched) }
 }

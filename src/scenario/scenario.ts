@@ -299,6 +299,11 @@ export interface ScenarioFetcherOpts extends PhaseOpts {
   // Phases to execute, in pipeline order. Defaults to the browse-derived
   // plan for the config; a report run declares its own.
   plan?: ScenarioPhaseName[]
+  // Routes whose departures to leave out, decided once the routes have
+  // loaded: the WSDOT reports leave out copies of routes kept from another
+  // feed. When set, departures wait for the routes phase instead of running
+  // alongside it.
+  excludeDepartureRoutes?: (stops: StopsPhaseResult) => ReadonlySet<number>
 }
 
 // Composes the scenario pipeline out of the standalone phases in ./phases:
@@ -308,6 +313,8 @@ export interface ScenarioFetcherOpts extends PhaseOpts {
 //                           ├─ routes ───────┴─ buffer passes ─┬─ flex
 //                           │                                  └─ census-values
 //                           └─ fares (fixed routes, then the flex routes)
+//
+// With excludeDepartureRoutes, departures follow routes instead.
 //
 // Follows the same contract as a phase — emit plus non-fatal onError — and
 // runs inside a stream envelope that owns the run's framing.
@@ -319,6 +326,7 @@ export class ScenarioFetcher {
 
   // The phases this run executes, in pipeline order.
   private plan: ScenarioPhaseName[]
+  private excludeDepartureRoutes?: ScenarioFetcherOpts['excludeDepartureRoutes']
 
   constructor (
     config: ScenarioConfig,
@@ -331,6 +339,7 @@ export class ScenarioFetcher {
     this.emit = emit
     this.onError = opts.onError ?? (() => {})
     this.plan = opts.plan ?? scenarioPhasePlan(config)
+    this.excludeDepartureRoutes = opts.excludeDepartureRoutes
   }
 
   async fetch () {
@@ -420,16 +429,6 @@ export class ScenarioFetcher {
 
     // Awaited as one group rather than in sequence, for the same reason as
     // the fetch() branches.
-    const departuresPromise = enabled.has('departures')
-      ? runDeparturesPhase({
-          stopIds,
-          startDate: this.config.startDate,
-          endDate: this.config.endDate,
-          dates: this.config.departureDates,
-          routeIds,
-          routeStopIds,
-        }, this.client, this.emit, { onError })
-      : Promise.resolve()
     const stopCensusPromise = enabled.has('stop-census')
       ? this.fetchStopCensus(stopIds, onError)
       : Promise.resolve()
@@ -437,12 +436,34 @@ export class ScenarioFetcher {
       ? runRoutesPhase({
           routeIds,
           includeGeometry: this.config.includeRouteGeometry,
-          // The scenario's first week, the most dates the API compares copies on.
-          similarRouteDates: getSelectedDateRange(this.config)
-            .slice(0, SIMILAR_ROUTE_MAX_DATES)
-            .map(d => format(d, 'yyyy-MM-dd')),
+          // Copies are compared on the days departures are fetched for when the
+          // caller narrows them (a WSDOT report reads a few days), else on the
+          // scenario's first week: at most the dates the API compares on.
+          similarRouteDates: this.config.departureDates
+            ? [...new Set(this.config.departureDates)].sort().slice(0, SIMILAR_ROUTE_MAX_DATES)
+            : getSelectedDateRange(this.config).slice(0, SIMILAR_ROUTE_MAX_DATES).map(d => format(d, 'yyyy-MM-dd')),
         }, this.client, this.emit, { onError })
       : Promise.resolve({ agencyIds: [] as number[] })
+    // With routes to leave out, departures start once the routes are in.
+    const exclude = this.excludeDepartureRoutes
+    const departureRoutes = exclude
+      ? routesPromise.then(() => {
+          const excluded = exclude(stops)
+          return {
+            routeIds: routeIds.filter(id => !excluded.has(id)),
+            routeStopIds: Object.fromEntries(Object.entries(routeStopIds).filter(([id]) => !excluded.has(Number(id)))),
+          }
+        })
+      : Promise.resolve({ routeIds, routeStopIds })
+    const departuresPromise = enabled.has('departures')
+      ? departureRoutes.then(routes => runDeparturesPhase({
+          stopIds,
+          startDate: this.config.startDate,
+          endDate: this.config.endDate,
+          dates: this.config.departureDates,
+          ...routes,
+        }, this.client, this.emit, { onError }))
+      : Promise.resolve()
     const [, , { agencyIds }] = await Promise.all([departuresPromise, stopCensusPromise, routesPromise])
     logMemory('after-departures')
 

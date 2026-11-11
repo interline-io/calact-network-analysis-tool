@@ -4,9 +4,11 @@ import {
   ScenarioFetcher,
   ScenarioDataReceiver,
   type ScenarioData,
+  type StopsPhaseResult,
 } from '~~/src/scenario'
 import { WSDOTFrequencyAggregator } from './frequency'
 import { WSDOTStopCollector } from './stops'
+import { findWsdotDuplicateRoutes, type WSDOTDuplicateRoutes } from './duplicates'
 import {
   runWsdotLevelsPhase,
   runWsdotGeographiesPhase,
@@ -24,6 +26,7 @@ export * from './report-phases'
 export { SERVICE_LEVELS, levelColors, type LevelKey } from './service-levels'
 export { WSDOTFrequencyAggregator, type FrequencyData, type FrequencyLabels } from './frequency'
 export { WSDOTStopCollector, type WSDOTStopRecord } from './stops'
+export { findWsdotDuplicateRoutes, type WSDOTDuplicateRoutes } from './duplicates'
 
 export interface WSDOTAnalysisOptions {
   // Populate the returned ScenarioData with whole stops and route shapes, for
@@ -85,19 +88,41 @@ export async function runAnalysis (
       dropRouteGeometry: !opts.retainScenarioEntities,
     })
 
+    // Copies of routes kept from another feed leave the report, as they leave
+    // the browse reports: found once the routes are in, so the departures
+    // phase never fetches theirs, and the stops only they serve leave the
+    // stop records.
+    let duplicates: WSDOTDuplicateRoutes | undefined
+    const excludeDepartureRoutes = configCopy.collapseDuplicateRoutes === false
+      ? undefined
+      : (fetched: StopsPhaseResult) => {
+          duplicates = findWsdotDuplicateRoutes(receiver.getCurrentData().routes, fetched.routeStopIds)
+          stops.remove(duplicates.removedStopIds)
+          return duplicates.hidden
+        }
+
     // Progress routes through the receiver (accumulation + folds) on its way
     // to the client.
     const fetcher = new ScenarioFetcher(configCopy, client, p => receiver.onProgress(p), {
       onError,
       plan: WSDOT_PHASE_PLAN,
+      excludeDepartureRoutes,
     })
     await fetcher.fetch()
     const scenarioData = receiver.getCurrentData()
 
+    // The client gets the list to show, and to take the copies out of the
+    // stops and routes it was sent.
+    const collapsedRoutes = duplicates?.collapsedRoutes ?? []
+    if (collapsedRoutes.length > 0) {
+      const progress: WSDOTProgress = { currentStage: 'wsdot-levels', partialData: { wsdotCollapsedRoutes: collapsedRoutes } }
+      await emit(progress)
+    }
+
     const levels = await runWsdotLevelsPhase(configCopy, {
       frequency,
       stops,
-      routes: scenarioData.routes,
+      routes: duplicates ? scenarioData.routes.filter(r => !duplicates!.hidden.has(r.id)) : scenarioData.routes,
     }, emit)
     const { bboxIntersection } = await runWsdotGeographiesPhase(configCopy, {
       levelSets: levels.levelSets,
@@ -114,6 +139,7 @@ export async function runAnalysis (
         levelLayers: {},
         levelGeometry: {},
         bboxIntersection,
+        collapsedRoutes,
       },
     }
   })
@@ -122,7 +148,7 @@ export async function runAnalysis (
 // Receiver for browser consumers, which reassemble the report from the
 // stream's typed payloads; the server builds it in-process instead.
 export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
-  private wsdotReport: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, levelGeometry: {}, bboxIntersection: [] }
+  private wsdotReport: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, levelGeometry: {}, bboxIntersection: [], collapsedRoutes: [] }
 
   // Narrower than the base signature; safe since every WSDOT field is optional.
   override onProgress (progress: WSDOTProgress): void {
@@ -141,6 +167,9 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
         const features = layers[chunk.layer] || (layers[chunk.layer] = [])
         features.push(...chunk.features)
       }
+    }
+    if (p?.wsdotCollapsedRoutes) {
+      this.wsdotReport.collapsedRoutes.push(...p.wsdotCollapsedRoutes)
     }
     if (p?.wsdotBboxIntersection) {
       this.wsdotReport.bboxIntersection.push(...p.wsdotBboxIntersection)

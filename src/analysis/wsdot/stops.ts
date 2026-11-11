@@ -55,6 +55,13 @@ export class WSDOTStopCollector {
     }
   }
 
+  /** Drop stops the report no longer lists, such as those only route copies serve. */
+  remove (stopIds: Iterable<number>): void {
+    for (const stopId of stopIds) {
+      this.records.delete(stopId)
+    }
+  }
+
   // Fill in each stop's state name from the stop-census phase, which runs
   // after stop discovery — every record already exists. A stop the phase
   // returned nothing for keeps the empty name it was collected with.

@@ -71,9 +71,13 @@ function levelTotals (): Record<LevelKey, number> {
 // Recorded from this implementation against the fixture dumps. They move when
 // the dumps are rebuilt; re-record deliberately, by reading what changed in
 // the feeds, rather than pasting what a run printed.
-const GOLDEN_COUNTS = { stops: 161, routes: 56, agencies: 11 }
+//
+// Tillamook's copy of Columbia County Rider's route 1 is hidden as a duplicate
+// of the route in Columbia County Rider's own feed, with the one stop only it
+// serves, so the copy's agency entry under Tillamook's feed goes too.
+const GOLDEN_COUNTS = { stops: 160, routes: 55, agencies: 10 }
 
-// Fewer stops than ../wsdot's 177: this report lists only stops that are on a
+// Fewer stops than ../wsdot's 176: this report lists only stops that are on a
 // route.
 const GOLDEN_LEVEL_TOTALS: Record<LevelKey, number> = {
   level1: 9,
@@ -81,21 +85,21 @@ const GOLDEN_LEVEL_TOTALS: Record<LevelKey, number> = {
   level3: 123,
   level4: 143,
   level5: 148,
-  level6: 155,
+  level6: 154,
   levelNights: 7,
 }
 
 // The rollup the viewer lists, as [agencyId, agencyName, stopsCount,
 // routesCount], sorted by id. Small enough to pin whole, and the agency id is
-// feed-scoped, so two feeds carrying the same GTFS agency stay separate —
-// note Columbia County Rider appearing under both its own feed and Tillamook's.
+// feed-scoped, so two feeds carrying the same GTFS agency stay separate. Only
+// a copy of Columbia County Rider's route is under Tillamook's feed, and it is
+// hidden, so Columbia County Rider appears under its own feed alone.
 const GOLDEN_AGENCIES: Array<[string, string, number, number]> = [
   ['f-9-amtrak~amtrakcalifornia~amtrakcharteredvehicle:51', 'Amtrak', 1, 3],
   ['f-9rb-pacificcrest~or~us:187', 'Pacific Crest Bus Lines', 1, 1],
   ['f-9rc-cobreeze~or~us:47', 'Central Oregon Breeze', 1, 1],
   ['f-c20-columbiacountyrider:57', 'Columbia County Rider', 1, 1],
   ['f-c20-tillamook~or~us:22', 'Tillamook County Transportation District', 1, 1],
-  ['f-c20-tillamook~or~us:57', 'Columbia County Rider', 1, 1],
   ['f-c20-trimet:PSC', 'Portland Streetcar', 23, 3],
   ['f-c20-trimet:TRIMET', 'TriMet', 122, 39],
   ['f-c20g-c~tran:C-TRAN', 'C-TRAN', 7, 3],

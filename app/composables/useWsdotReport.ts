@@ -8,6 +8,7 @@ import { useScenarioStream, type UseScenarioStreamReturn } from './useScenarioSt
 import type { FetchMode } from './useOpenStream'
 import { useToastNotification } from './useToastNotification'
 import { useScenarioInputs } from './useScenarioInputs'
+import { useScenarioFilters } from './useScenarioFilters'
 import {
   WSDOTReportDataReceiver,
   type WSDOTLevelGeometryConfig,
@@ -46,6 +47,9 @@ export interface UseWsdotReportReturn extends Pick<UseScenarioStreamReturn,
 export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn {
   const stream = useScenarioStream(deps.fetchMode)
   const { pinScenarioInputs } = useScenarioInputs()
+  // The browse filter's setting, so a report hides route copies when the
+  // browse does and shows them when it is turned off there.
+  const { collapseDuplicateRoutes } = useScenarioFilters()
   const wsdotReport = shallowRef<WSDOTReport>()
   // Kept past the run so the overlay's outlines stream into the report it
   // built rather than replacing it.
@@ -60,6 +64,9 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
   })
 
   const fetchReport = async (): Promise<boolean> => {
+    // Recorded on the report's config, so its viewer says what this run did
+    // whatever the browse filter says later.
+    wsdotReportConfig.value.collapseDuplicateRoutes = collapseDuplicateRoutes.value
     const config = wsdotReportConfig.value
     if (!hasSearchArea(config)) {
       useToastNotification().showToast('Please provide a bounding box or geography IDs.')
@@ -93,7 +100,7 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
     })
     reportReceiver = receiver
 
-    await stream.run(receiver, 'wsdot', { config: wsdotReportConfig.value })
+    await stream.run(receiver, 'wsdot', { config })
     return true
   }
 

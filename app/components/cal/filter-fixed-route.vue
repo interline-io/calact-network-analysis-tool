@@ -1,7 +1,7 @@
 <template>
   <aside class="cal-service-levels menu">
     <p class="menu-label">
-      <cat-tooltip text="The same route can be published in more than one feed. A copy is hidden when another feed's copy, sharing its route Onestop ID, runs the same trips or more; it then leaves every report, count, map layer and export. Copies that run different trips stay.">
+      <cat-tooltip text="The same route can be published in more than one feed. A copy is hidden when another feed's copy, sharing its route Onestop ID, runs the same trips or more; it then leaves every report, count, map layer and export, and the WSDOT reports run afterwards. Copies that run different trips stay.">
         Duplicate routes
         <cat-icon icon="information" />
       </cat-tooltip>
@@ -12,19 +12,11 @@
         label="Hide copies of routes kept from another feed"
       />
     </cat-field>
-    <div v-if="collapseDuplicateRoutes && collapsedRoutes.length > 0" class="content is-small mb-4">
-      <p class="mb-1">
-        {{ collapsedRoutes.length }} hidden:
-      </p>
-      <ul class="mt-0">
-        <li v-for="c of collapsedRoutes" :key="c.route.id">
-          <strong>{{ c.route.agencyName }}: {{ c.route.name }}</strong>
-          from <code>{{ c.route.feedOnestopId }}</code>,
-          {{ tripsLabel(c) }}
-          {{ keptNames(c) }} from <code>{{ c.kept[0]?.feedOnestopId }}</code>
-        </li>
-      </ul>
-    </div>
+    <cal-duplicate-routes-list
+      v-if="collapseDuplicateRoutes && collapsedRoutes.length > 0"
+      :routes="collapsedRoutes"
+      class="mb-4"
+    />
     <p v-else-if="collapseDuplicateRoutes && detectionAvailable" class="is-size-7 mb-4">
       None found
     </p>
@@ -285,7 +277,7 @@ import {
   STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES,
   STOP_VISITS_DEFAULT_TOTAL,
 } from '~~/src/core'
-import type { CollapsedRouteSummary, ScenarioFilterResult } from '~~/src/scenario'
+import type { ScenarioFilterResult } from '~~/src/scenario'
 
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
@@ -309,24 +301,9 @@ const {
 
 const collapsedRoutes = computed(() => props.scenarioFilterResult?.collapsedRoutes ?? [])
 
-// Completes "<route> from <feed>, … <kept route> from <feed>", with the
-// trips the API matched over the scenario's first week.
-function tripsLabel (c: CollapsedRouteSummary): string {
-  if (c.trips > 0 && c.matchedTrips >= c.trips) {
-    return `all ${c.trips} of its trips also run by`
-  }
-  return `${c.matchedTrips} of its ${c.trips} trips also run by`
-}
-
 // Whether the routes carry Transitland's comparison of copies, so that
 // finding none means none.
 const detectionAvailable = computed(() => props.scenarioFilterResult?.duplicateDetectionAvailable ?? false)
-
-// The kept copies' names, once each: usually one route, sometimes several
-// rows of one route in the kept feed.
-function keptNames (c: CollapsedRouteSummary): string {
-  return [...new Set(c.kept.map(k => k.name))].join(', ')
-}
 
 // Emptying a field to retype it keeps the current value (see keepValueWhenEmptied).
 const setFrequencyUnder = keepValueWhenEmptied(frequencyUnder)

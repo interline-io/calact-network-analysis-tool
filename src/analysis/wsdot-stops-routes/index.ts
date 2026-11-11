@@ -1,6 +1,6 @@
 import type { WSDOTReport, WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import type { GraphQLClient } from '~~/src/core'
-import type { ScenarioData } from '~~/src/scenario'
+import { withoutCollapsedRoutes, type CollapsedRouteSummary, type ScenarioData } from '~~/src/scenario'
 
 import { routesById } from '~~/src/tl'
 import { runAnalysis as runWsdotAnalysis } from '~~/src/analysis/wsdot'
@@ -12,6 +12,9 @@ export interface WSDOTStopsRoutesReport {
   stops: WSDOTStopResult[]
   routes: WSDOTRouteResult[]
   agencies: WSDOTAgencyResult[]
+  // Copies of routes kept from another feed, left out of the stops, routes
+  // and agencies.
+  collapsedRoutes: CollapsedRouteSummary[]
 }
 
 export interface WSDOTStopResult {
@@ -118,7 +121,15 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
     }
   }
 
-  const routeLookup = routesById(currentData.routes)
+  // The stops and routes arrive with the copies the WSDOT report left out,
+  // which leave this report too: the routes, the stops only they serve, and
+  // the rest's route_stops, so no stop is credited to a copy's agency.
+  const collapsedRoutes = wsdotReport.collapsedRoutes ?? []
+  const hidden = new Set(collapsedRoutes.map(c => c.route.id))
+  const scenarioRoutes = currentData.routes.filter(r => !hidden.has(r.id))
+  const scenarioStops = withoutCollapsedRoutes(currentData.stops, hidden).stops
+
+  const routeLookup = routesById(scenarioRoutes)
 
   // GTFS agency_id is unique only within a feed, hence the composite. A blank
   // agency_id is legal, so an agency known only by its numeric id is kept
@@ -131,7 +142,7 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
   }
 
   // Process stops to build agency map - filter out stops with no routes
-  const stops = currentData.stops
+  const stops = scenarioStops
     .filter(stop => stop.route_stops?.length > 0)
     .map((stop) => {
       const firstRouteStop = stop.route_stops[0]!
@@ -196,7 +207,7 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
     })
 
   // Process routes to build agency map
-  const routes = currentData.routes.map((route) => {
+  const routes = scenarioRoutes.map((route) => {
     const agencyId = route.agency?.agency_id || null
     const agencyName = route.agency?.agency_name
     const feedOnestopId = route.feed_version?.feed?.onestop_id || 'unknown'
@@ -251,12 +262,14 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
     totalRoutes: routes.length,
     routesWithoutAgency: routes.filter(r => UNRESOLVED_AGENCY.test(r.agencyId)).length,
     originalStopsCount: currentData.stops.length,
-    filteredOutStops: currentData.stops.length - stops.length
+    filteredOutStops: currentData.stops.length - stops.length,
+    collapsedRoutes: collapsedRoutes.length,
   })
 
   return {
     stops,
     routes,
-    agencies
+    agencies,
+    collapsedRoutes,
   }
 }

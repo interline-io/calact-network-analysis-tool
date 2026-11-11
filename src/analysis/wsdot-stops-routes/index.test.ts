@@ -55,6 +55,7 @@ describe('processWsdotStopsRoutesReport service level mapping', () => {
       levelLayers: {},
       levelGeometry: {},
       bboxIntersection: [],
+      collapsedRoutes: [],
     }
 
     const out = processWsdotStopsRoutesReport(data, report)
@@ -82,9 +83,47 @@ describe('processWsdotStopsRoutesReport service level mapping', () => {
       levelLayers: {},
       levelGeometry: {},
       bboxIntersection: [],
+      collapsedRoutes: [],
     }
     const out = processWsdotStopsRoutesReport(data, report)
     expect(out.stops.find(s => s.feedOnestopId === 'f-busy')?.level2).toBe(1)
     expect(out.stops.find(s => s.feedOnestopId === 'f-rural')?.level2).toBe(0)
+  })
+})
+
+describe('processWsdotStopsRoutesReport duplicate routes', () => {
+  it('leaves out the copies the WSDOT report hid, and the stops only they serve', () => {
+    // Route 2 is a copy of route 1 published by another feed. Stop 202 is the
+    // copy's alone; stop 203 is also served by route 3 of the copy's feed.
+    const route = (id: number, agencyId: number, feed: string) => ({
+      id,
+      route_id: `r${id}`,
+      agency: { id: agencyId, agency_id: `a${agencyId}`, agency_name: `Agency ${agencyId}` },
+      feed_version: { sha1: `sha-${feed}`, feed: { onestop_id: feed } },
+    })
+    const data = {
+      stops: [
+        scenarioStop(101, '1', 'f-own'),
+        { ...scenarioStop(202, '1', 'f-copy'), route_stops: [{ route_id: 2, agency_id: 2 }] },
+        { ...scenarioStop(203, '2', 'f-copy'), route_stops: [{ route_id: 2, agency_id: 2 }, { route_id: 3, agency_id: 3 }] },
+      ],
+      routes: [route(1, 1, 'f-own'), route(2, 2, 'f-copy'), route(3, 3, 'f-copy')],
+    } as unknown as ScenarioData
+    const ref = (id: number, feed: string) => ({ id, name: `R${id}`, agencyName: `Agency ${id}`, feedOnestopId: feed })
+    const report: WSDOTReport = {
+      stops: [],
+      levelStops: {},
+      levelLayers: {},
+      levelGeometry: {},
+      bboxIntersection: [],
+      collapsedRoutes: [{ route: ref(2, 'f-copy'), kept: [ref(1, 'f-own')], relationship: 'same-trips', matchedTrips: 4, trips: 4 }],
+    }
+    const out = processWsdotStopsRoutesReport(data, report)
+    expect(out.routes.map(r => r.routeId).sort()).toEqual(['r1', 'r3'])
+    expect(out.stops.map(s => `${s.feedOnestopId}:${s.stopId}`).sort()).toEqual(['f-copy:2', 'f-own:1'])
+    // The shared stop is credited to the route that stays, not the copy's agency.
+    expect(out.stops.find(s => s.feedOnestopId === 'f-copy')?.agencyId).toBe('f-copy:a3')
+    expect(out.agencies.map(a => a.agencyId).sort()).toEqual(['f-copy:a3', 'f-own:a1'])
+    expect(out.collapsedRoutes).toHaveLength(1)
   })
 })
