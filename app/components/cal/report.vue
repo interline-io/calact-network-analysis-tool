@@ -75,10 +75,19 @@
     <!-- Transfers at one stop or cluster, given by the page. -->
     <slot v-if="isTransfers" name="transfers" />
 
+    <!-- One per tab, so each keeps its own filter, sort and page. -->
     <cal-datagrid
       v-else
+      :key="activeReportTab"
+      v-model:view="activeTableView"
       :table-report="activeTableReport"
       :caption="activeReportTabLabel"
+      :row-actions="rowActions"
+      :row-label="row => reportRowLabel(activeReportTab, row)"
+      :row-key="row => reportRowKey(activeReportTab, row)"
+      :highlight-row-key="highlightRowKey"
+      :reveal-key="highlightOnTab ? revealKey : undefined"
+      @revealed="emit('revealed')"
     >
       <!-- Custom rendering for URLs column (flex areas) -->
       <template #column-urls="{ row }">
@@ -189,9 +198,10 @@
 
 <script setup lang="ts">
 import type { TripDetailsTab } from './trip-details.vue'
+import type { DatagridRowAction, DatagridView } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, routesById, formatFareAmount, type Route, type Stop, type Agency } from '~~/src/tl'
-import { stopClusterCsv, type ScenarioFilterResult, type TripSubject, type BufferDetailsKind, type BufferDetailsPayload, buildRouteColumns, buildStopColumns, buildStopGeoAggregateColumns, buildAgencyColumns, stopClusterColumns, flexAreaColumns, flexFeatureToCsv } from '~~/src/scenario'
-import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag, type TableReport } from '~~/src/core'
+import { stopClusterCsv, type ScenarioFilterResult, type TripSubject, type BufferDetailsKind, type BufferDetailsPayload, buildRouteColumns, buildStopColumns, buildStopGeoAggregateColumns, buildAgencyColumns, stopClusterColumns, flexAreaColumns, flexFeatureToCsv, crossrefKey, crossrefReportTab, reportRowKey, reportRowLabel, reportRowTarget, REPORT_TAB_DISPLAY_MODES, type CrossrefTarget, type ReportTab } from '~~/src/scenario'
+import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type Feature, type FilterTag, type TableReport } from '~~/src/core'
 
 const props = defineProps<{
   filterTags: FilterTag[]
@@ -199,10 +209,15 @@ const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   exportFeatures?: Feature[]
   flexDisplayFeatures?: Feature[]
+  // The row the map last pointed at, highlighted in its table.
+  highlight?: CrossrefTarget | null
+  // Changed to bring the highlighted row into view.
+  revealKey?: number
 }>()
 
 const { aggregateLayer, onlyWithStops, dataDisplayMode, isAllDayMode } = useScenarioDisplay()
 const { startDate, endDate, fixedRouteEnabled, stopBufferRadius, stopBufferLayer, geoDatasetName } = useScenarioInputs()
+const { flexServicesEnabled } = useScenarioFilters()
 
 const emit = defineEmits<{
   openBufferDetails: [payload: BufferDetailsPayload]
@@ -211,7 +226,62 @@ const emit = defineEmits<{
   openTrips: [subject: TripSubject, tab?: TripDetailsTab]
   // Transfers at a stop or cluster, in the Transfer Analyst tab.
   openTransfers: [subject: TripSubject]
+  // A row's feature, shown on the map.
+  seeOnMap: [target: CrossrefTarget]
+  // An aggregation area's census details, as its census panel opens them.
+  openCensusDetails: [geoid: string]
+  // The highlighted row was brought into view.
+  revealed: []
 }>()
+
+// Each table's filter, sort and page, kept by the page: this component goes
+// whenever the map is shown.
+const tableViews = defineModel<Partial<Record<ReportTab, DatagridView>>>('tableViews', { default: () => ({}) })
+const activeTableView = computed({
+  get: () => tableViews.value[activeReportTab.value],
+  set: (v) => {
+    tableViews.value = { ...tableViews.value, [activeReportTab.value]: v }
+  },
+})
+
+// The highlighted row, when it is in the table shown.
+const highlightOnTab = computed(() => !!props.highlight && crossrefReportTab(props.highlight) === activeReportTab.value)
+const highlightRowKey = computed(() => highlightOnTab.value ? crossrefKey(props.highlight!) : undefined)
+
+// A row's menu: "See on map", for a feature the map can show (flex areas are
+// drawn only while flex services are on), then what the map popup or census
+// panel offers for the same feature: its trips, its transfers, its census
+// details.
+function rowActions (row: Record<string, any>): DatagridRowAction[] {
+  const target = reportRowTarget(activeReportTab.value, row)
+  if (!target) {
+    return []
+  }
+  const actions: DatagridRowAction[] = []
+  if (target.kind !== 'flex' || flexServicesEnabled.value) {
+    actions.push({ label: 'See on map', icon: 'map-marker', run: () => emit('seeOnMap', target) })
+  }
+  const tripsAction = (subject: TripSubject): DatagridRowAction =>
+    ({ label: 'Show trip information', icon: 'bus-clock', run: () => emit('openTrips', subject) })
+  const transfersAction = (subject: TripSubject): DatagridRowAction =>
+    ({ label: 'Enter Transfer Analyst', icon: 'transit-transfer', run: () => emit('openTransfers', subject) })
+  switch (target.kind) {
+    case 'route':
+      // Only a route in the current results, as with its drill buttons.
+      actions.push({ label: 'Show trip information', icon: 'bus-clock', run: () => handleRouteDrill(target.id, 'trips') })
+      break
+    case 'stop':
+      actions.push(tripsAction({ kind: 'stop', stopId: target.id }), transfersAction({ kind: 'stop', stopId: target.id }))
+      break
+    case 'cluster':
+      actions.push(tripsAction({ kind: 'cluster', clusterId: target.id }), transfersAction({ kind: 'cluster', clusterId: target.id }))
+      break
+    case 'geography':
+      actions.push({ label: 'View census details', icon: 'chart-box-outline', run: () => emit('openCensusDetails', target.geoid) })
+      break
+  }
+  return actions
+}
 
 // The trips/frequency columns all render a drill button into the route's trip
 // details; they vary only by which tab it opens and how the value is
@@ -351,9 +421,6 @@ const reportHeading = computed(() => {
   return `Reports: ${fmtDate(startDate.value, 'dd MMM, yyyy')} - ${fmtDate(endDate.value, 'dd MMM, yyyy')}`
 })
 
-// The report's tabs.
-export type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'stop-clusters' | 'agencies' | 'flex' | 'transfers'
-
 const activeReportTab = defineModel<ReportTab>('tab', { default: 'routes' })
 // Whether the Transfer Analyst tab is open: it shows the page's slot in place
 // of a table, and has no map display mode.
@@ -384,17 +451,8 @@ const hasFlexData = computed(() => (props.scenarioFilterResult?.flexAreas?.lengt
 // Sync dataDisplayMode when the user switches tabs. The Transfer Analyst has
 // no display mode of its own, so opening it keeps the current mode, and a mode
 // change doesn't switch away from the Transfer Analyst.
-const modeMap: Partial<Record<ReportTab, DataDisplayMode>> = {
-  'routes': 'Transit mode',
-  'stops': 'Stop visits',
-  'stops-aggregated': 'Stop visits',
-  'stop-clusters': 'Stop visits',
-  'agencies': 'Agency',
-  'flex': 'Service area',
-}
-
 watch(activeReportTab, (tab) => {
-  const mode = modeMap[tab]
+  const mode = REPORT_TAB_DISPLAY_MODES[tab]
   if (mode) {
     dataDisplayMode.value = mode
   }

@@ -31,6 +31,7 @@ const emit = defineEmits([
   'openTransfers',
   'popupShown',
   'popupClosed',
+  'seeInTable',
 ])
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: () => [] })
@@ -65,6 +66,10 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Features to fit to when fitOverlayKey changes
   fitTargetFeatures?: Feature[]
+  // One feature to bring into view, clear of the sidebar, when focusKey
+  // changes: a table row's, from "See on map"
+  focusFeatures?: Feature[]
+  focusKey?: number
 }>()
 
 const { unitSystem, isAllDayMode } = useScenarioDisplay()
@@ -73,6 +78,8 @@ const { unitSystem, isAllDayMode } = useScenarioDisplay()
 const skipUpdateStages = new Set(['departures'])
 
 let map: (maplibre.Map | undefined) = undefined
+// Whether the map's load event has fired.
+let mapLoaded = false
 const markerLayer = ref<maplibre.Marker[]>([])
 const clusterMarkerLayer = ref<maplibre.Marker[]>([])
 let geoHoverPopup: maplibre.Popup | undefined
@@ -183,6 +190,40 @@ watch(() => props.fitOverlayKey, () => {
   }
 })
 
+watch(() => props.focusKey, () => {
+  const features = props.focusFeatures
+  if (!map || !features?.length) {
+    return
+  }
+  const options = focusPadding(features.every(f => f.geometry.type === 'Point'))
+  fitFeatures(features, options)
+  // Before the map's first load, its load handler fits back to the initial
+  // bounds when it fires, so the focus fits again after it.
+  if (!mapLoaded) {
+    map.once('load', () => fitFeatures(features, options))
+  }
+})
+
+// Room for the popup and the sidebar (legend, panels) on the right, within
+// what a small map can spare. A stop or a cluster sits high, its popup, which
+// for a cluster is tall, opening below it; a line or an area keeps more of
+// the height, its popup over its middle.
+function focusPadding (points: boolean): maplibre.FitBoundsOptions {
+  const canvas = map?.getCanvas()
+  const w = canvas?.clientWidth || 800
+  const h = canvas?.clientHeight || 600
+  return {
+    duration: 600,
+    maxZoom: 16,
+    padding: {
+      top: Math.round(points ? Math.min(100, h * 0.15) : Math.min(260, h * 0.35)),
+      bottom: Math.round(points ? Math.min(460, h * 0.6) : Math.min(40, h * 0.06)),
+      left: Math.round(Math.min(80, w * 0.1)),
+      right: Math.round(Math.min(470, w * 0.4)),
+    },
+  }
+}
+
 watch(() => props.fitBoundsKey, () => {
   if (props.initialBounds && map) {
     const { sw, ne } = props.initialBounds
@@ -233,6 +274,7 @@ function initMap () {
   map.getContainer().appendChild(choroplethTooltip)
   drawMarkers(markers.value)
   map.on('load', () => {
+    mapLoaded = true
     if (props.panelWidth) {
       applyPanelPadding(props.panelWidth)
     }
@@ -839,7 +881,7 @@ function updateClusterLines (features: Feature[]) {
   setSourceData('clusterLines', features)
 }
 
-function fitFeatures (features: Feature[]) {
+function fitFeatures (features: Feature[], options: maplibre.FitBoundsOptions = { duration: 0, padding: 20, maxZoom: 14 }) {
   const coords = []
   for (const f of features) {
     const g = f.geometry
@@ -875,11 +917,7 @@ function fitFeatures (features: Feature[]) {
     const bounds = coords.reduce(function (bounds, coord) {
       return bounds.extend(coord)
     }, new maplibre.LngLatBounds(coords[0], coords[0]))
-    map?.fitBounds(bounds, {
-      duration: 0,
-      padding: 20,
-      maxZoom: 14
-    })
+    map?.fitBounds(bounds, options)
   }
 }
 
@@ -1030,6 +1068,7 @@ function showPopupAtIndex (index: number) {
         featureType: feature.featureType!,
         featureId: feature.featureId || '',
         sourceLayer: feature.sourceLayer || '',
+        inTable: feature.inTable,
         data: feature.data!,
       },
       currentIndex: currentPopupIndex,
@@ -1051,6 +1090,11 @@ function showPopupAtIndex (index: number) {
         // highlighted, and a cluster stays selected, so the map still shows
         // what the panel describes.
         removePopup()
+      },
+      // The popup stays, so coming back to the map finds the feature still
+      // selected.
+      onSeeInTable: () => {
+        emit('seeInTable', feature)
       },
       onOpenTransfers: (featureType: string, featureId: string | number) => {
         emit('openTransfers', featureType, featureId)

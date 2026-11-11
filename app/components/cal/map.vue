@@ -58,6 +58,8 @@
       :fit-bounds-key="fitBoundsKey"
       :fit-overlay-key="props.fitOverlayKey"
       :fit-target-features="fitTargetFeatures"
+      :focus-features="focusFeatures"
+      :focus-key="focusKey"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
       @selectable-geo-click="onSelectableGeoClick"
@@ -67,6 +69,7 @@
       @overlay-drag-end="onOverlayDragEnd"
       @show-trips="handleShowTrips"
       @open-transfers="handleOpenTransfers"
+      @see-in-table="handleSeeInTable"
       @popup-shown="onPopupShown"
       @popup-closed="onPopupClosed"
     />
@@ -74,12 +77,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, toRaw, watch, toRef } from 'vue'
+import { ref, shallowRef, computed, toRaw, watch, toRef } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo, QueryPolygon } from '~~/src/core'
 import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
-import { buildStyleData, clusterDisplayName, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
+import { buildStyleData, clusterDisplayName, visibleAgencyIds, type CrossrefRequest, type CrossrefTarget, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
 
 const emit = defineEmits<{
   setMapExtent: [value: Bbox, userInitiated: boolean]
@@ -94,6 +97,8 @@ const emit = defineEmits<{
   selectionCleared: []
   selectAggregation: [row: Record<string, any>]
   viewCensusDetails: []
+  // A popup feature's row, in the Reports tab.
+  seeInTable: [target: CrossrefTarget]
 }>()
 
 const props = defineProps<{
@@ -122,6 +127,10 @@ const props = defineProps<{
   sidebarPanelOpen?: boolean
   // Increment to clear the selection, as when the trip panel is closed.
   clearSelectionKey?: number
+  // A feature to select and bring into view, as a click on it would select
+  // it: a Reports row's, from "See on map". A geography is selected by the
+  // page; the map brings it into view once its outline is drawn.
+  focus?: CrossrefRequest | null
 }>()
 
 const { dataDisplayMode, hideUnmarked } = useScenarioDisplay()
@@ -903,6 +912,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
 
   // Whatever was selected before is replaced by this click.
   emit('selectionCleared')
+  focusGeoid.value = null
 
   for (const feature of features) {
     const featureId = feature.id?.toString() || ''
@@ -944,63 +954,16 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     let sortKey: [number, number] = [0, 0]
 
     if (ft === 'Point') {
-      const stopLookup = stopFeatureLookup.value.get(featureId)
-      if (!stopLookup) {
+      popupFeature = stopPopupFeature(featureId, pt)
+      if (!popupFeature) {
         continue
-      }
-      const sp = stopLookup
-      popupFeature = {
-        point: { lon: pt.lng, lat: pt.lat },
-        featureId: featureId,
-        sourceLayer: 'points',
-        featureType: 'stop',
-        data: {
-          stop_id: sp.stop_id,
-          stop_name: sp.stop_name,
-          routes: stopPopupNames(sp, routeName),
-          agencies: stopPopupNames(sp, agencyName),
-        }
       }
       sortKey = [0, 0]
     } else if (ft === 'LineString' || ft === 'MultiLineString') {
-      popupFeature = {
-        point: { lon: pt.lng, lat: pt.lat },
-        featureId: featureId,
-        sourceLayer: 'lines',
-        featureType: 'route',
-        data: {
-          route_id: fp.route_id,
-          route_short_name: fp.route_short_name || '',
-          route_long_name: fp.route_long_name || '',
-          route_type_name: routeTypeNames.get(fp.route_type) || 'Unknown',
-          agency_name: fp.agency_name,
-          average_frequency: fp.average_frequency ?? undefined,
-          frequency_irregular: fp.frequency_irregular,
-          frequency_directions_differ: fp.frequency_directions_differ,
-        }
-      }
+      popupFeature = routePopupFeature(featureId, fp, pt)
       sortKey = [1, 0]
     } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.location_id) {
-      // Flex service area popup
-      // Use location_id from properties as the feature ID (more reliable than feature.id from MapLibre query)
-      const flexFeatureId = fp.location_id?.toString() || featureId
-      popupFeature = {
-        point: { lon: pt.lng, lat: pt.lat },
-        featureId: flexFeatureId,
-        sourceLayer: 'flexPolygons',
-        featureType: 'flex',
-        data: {
-          location_id: fp.location_id,
-          location_name: fp.location_name,
-          agency_name: fp.agency_name || fp.agency_names || 'Unknown',
-          route_names: fp.route_names || 'Unknown',
-          area_type: fp.area_type || 'Unknown',
-          advance_notice: fp.advance_notice || 'Unknown',
-          rider_eligibility: fp.rider_eligibility || 'Unknown',
-          phone_number: fp.phone_number,
-          marked: fp.marked,
-        }
-      }
+      popupFeature = flexPopupFeature(featureId, fp, pt)
       // Matched flex areas (marked=true) sort before unmatched; within each group sort smallest first.
       // Use POSITIVE_INFINITY for missing area so unknown-size areas sort last within their group.
       const matchOrder = fp.marked ? 2 : 3
@@ -1034,6 +997,75 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   popupFeatures.value = a
 }
 
+// The popups a click or a focus opens, one per kind of feature. pt is where
+// the popup points: the click, or the feature's own anchor.
+type PopupPoint = { lng: number, lat: number }
+
+function stopPopupFeature (featureId: string, pt: PopupPoint): PopupFeature | undefined {
+  const sp = stopFeatureLookup.value.get(featureId)
+  if (!sp) {
+    return undefined
+  }
+  return {
+    point: { lon: pt.lng, lat: pt.lat },
+    featureId: featureId,
+    sourceLayer: 'points',
+    featureType: 'stop',
+    inTable: !!sp.marked,
+    data: {
+      stop_id: sp.stop_id,
+      stop_name: sp.stop_name,
+      routes: stopPopupNames(sp, routeName),
+      agencies: stopPopupNames(sp, agencyName),
+    }
+  }
+}
+
+function routePopupFeature (featureId: string, fp: Record<string, any>, pt: PopupPoint): PopupFeature {
+  return {
+    point: { lon: pt.lng, lat: pt.lat },
+    featureId: featureId,
+    sourceLayer: 'lines',
+    featureType: 'route',
+    inTable: !!routeLookup.value.get(Number(featureId))?.marked,
+    data: {
+      route_id: fp.route_id,
+      route_short_name: fp.route_short_name || '',
+      route_long_name: fp.route_long_name || '',
+      route_type_name: routeTypeNames.get(fp.route_type) || 'Unknown',
+      agency_name: fp.agency_name,
+      average_frequency: fp.average_frequency ?? undefined,
+      frequency_irregular: fp.frequency_irregular,
+      frequency_directions_differ: fp.frequency_directions_differ,
+    }
+  }
+}
+
+// Use location_id from properties as the feature ID (more reliable than
+// feature.id from MapLibre query). The Flex Areas table lists the matched
+// areas.
+function flexPopupFeature (featureId: string, fp: Record<string, any>, pt: PopupPoint): PopupFeature {
+  return {
+    point: { lon: pt.lng, lat: pt.lat },
+    featureId: fp.location_id?.toString() || featureId,
+    sourceLayer: 'flexPolygons',
+    featureType: 'flex',
+    inTable: !!fp.marked && !!fp.feed_onestop_id,
+    data: {
+      location_id: fp.location_id,
+      feed_onestop_id: fp.feed_onestop_id,
+      location_name: fp.location_name,
+      agency_name: fp.agency_name || fp.agency_names || 'Unknown',
+      route_names: fp.route_names || 'Unknown',
+      area_type: fp.area_type || 'Unknown',
+      advance_notice: fp.advance_notice || 'Unknown',
+      rider_eligibility: fp.rider_eligibility || 'Unknown',
+      phone_number: fp.phone_number,
+      marked: fp.marked,
+    }
+  }
+}
+
 // Build the "Stop Cluster" popup. Member agency/route detail is derived client-
 // side from loaded route_stops — it's not on the lean cluster wire format.
 function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
@@ -1061,6 +1093,8 @@ function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
     featureId: cluster.id,
     sourceLayer: 'clusters',
     featureType: 'cluster',
+    // The Stop Clusters table lists every cluster.
+    inTable: true,
     data: {
       cluster_id: cluster.id,
       cluster_name: clusterDisplayName(cluster.name, cluster.nearName),
@@ -1116,6 +1150,155 @@ function handleOpenTransfers (featureType: string, featureId: string | number) {
     emit('openTransfers', subject)
   }
 }
+
+// The table row a popup's feature is.
+function popupTarget (feature: PopupFeature): CrossrefTarget | undefined {
+  const id = Number(feature.featureId)
+  switch (feature.featureType) {
+    case 'stop':
+      return Number.isFinite(id) ? { kind: 'stop', id } : undefined
+    case 'route':
+      return Number.isFinite(id) ? { kind: 'route', id } : undefined
+    case 'cluster':
+      return { kind: 'cluster', id: String(feature.featureId) }
+    case 'flex': {
+      const feed = feature.data?.feed_onestop_id
+      const location = feature.data?.location_id
+      return feed && location != null ? { kind: 'flex', feedOnestopId: feed, locationId: String(location) } : undefined
+    }
+    default:
+      return undefined
+  }
+}
+
+function handleSeeInTable (feature: PopupFeature) {
+  const target = popupTarget(feature)
+  if (target) {
+    emit('seeInTable', target)
+  }
+}
+
+/////////////////
+// Focus: "See on map" from a Reports row
+
+// What the viewer brings into view, and the count that tells it to.
+const focusFeatures = shallowRef<Feature[]>([])
+const focusKey = ref(0)
+// A geography waiting for its outline, which streams in after the overlay
+// is turned on.
+const focusGeoid = ref<string | null>(null)
+
+function pointFeature (coordinates: number[]): Feature {
+  return { type: 'Feature', geometry: { type: 'Point', coordinates }, properties: {} } as Feature
+}
+
+// Where a popup points on a line or an area: a line's middle vertex, an
+// area's bounding-box center (arithmetic, not a geometry op).
+function anchorOf (geometry: Geometry): PopupPoint | undefined {
+  const g = geometry as { type: string, coordinates: any }
+  if (g.type === 'Point') {
+    return { lng: g.coordinates[0], lat: g.coordinates[1] }
+  }
+  if (g.type === 'LineString' || g.type === 'MultiLineString') {
+    const lines: number[][][] = g.type === 'LineString' ? [g.coordinates] : g.coordinates
+    const longest = lines.reduce((a, b) => (b.length > a.length ? b : a), [])
+    const mid = longest[Math.floor(longest.length / 2)]
+    return mid ? { lng: mid[0]!, lat: mid[1]! } : undefined
+  }
+  if (g.type === 'Polygon' || g.type === 'MultiPolygon') {
+    const rings: number[][][] = g.type === 'Polygon' ? g.coordinates : g.coordinates.flat()
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const ring of rings) {
+      for (const [x, y] of ring) {
+        minX = Math.min(minX, x!)
+        maxX = Math.max(maxX, x!)
+        minY = Math.min(minY, y!)
+        maxY = Math.max(maxY, y!)
+      }
+    }
+    return Number.isFinite(minX) ? { lng: (minX + maxX) / 2, lat: (minY + maxY) / 2 } : undefined
+  }
+  return undefined
+}
+
+function focusOn (feature: Feature[]) {
+  focusFeatures.value = feature
+  focusKey.value++
+}
+
+// Selects a feature as a click on it would, with its popup, and brings it
+// into view. A feature the map doesn't draw selects nothing.
+function focusTarget (target: CrossrefTarget) {
+  emit('selectionCleared')
+  focusGeoid.value = null
+  // Clears a focused cluster, which would hide every other stop.
+  selectedClusterId.value = null
+
+  if (target.kind === 'geography') {
+    popupFeatures.value = []
+    focusGeoid.value = target.geoid
+    return
+  }
+
+  let popup: PopupFeature | undefined
+  let fit: Feature[] = []
+  if (target.kind === 'stop' || target.kind === 'route') {
+    const id = String(target.id)
+    const isRoute = target.kind === 'route'
+    const feature = displayFeatures.value.find(f => String(f.id) === id
+      && (isRoute ? f.geometry.type !== 'Point' : f.geometry.type === 'Point'))
+    const at = feature && anchorOf(feature.geometry)
+    if (feature && at) {
+      popup = isRoute ? routePopupFeature(id, feature.properties || {}, at) : stopPopupFeature(id, at)
+      fit = [feature]
+    }
+  } else if (target.kind === 'cluster') {
+    const visible = visibleClusters.value.find(v => v.cluster.id === target.id)
+    const anchor = clusterAnchorPoints.value.get(target.id)
+    if (visible && anchor) {
+      selectedClusterId.value = target.id
+      popup = buildClusterPopup(visible.cluster, { lng: anchor[0], lat: anchor[1] })
+      fit = [pointFeature(anchor)]
+      for (const sid of visible.cluster.memberStopIds) {
+        const member = stopFeatureLookup.value.get(sid.toString())
+        if (member) {
+          fit.push(pointFeature(member.geometry.coordinates))
+        }
+      }
+    }
+  } else if (target.kind === 'flex') {
+    const feature = flexFeatures.value.find(f => String(f.properties?.location_id) === target.locationId
+      && String(f.properties?.feed_onestop_id) === target.feedOnestopId)
+    const at = feature && anchorOf(feature.geometry)
+    if (feature && at) {
+      popup = flexPopupFeature(String(feature.id ?? ''), feature.properties || {}, at)
+      fit = [feature]
+    }
+  }
+
+  popupFeatures.value = popup ? [popup] : []
+  if (fit.length > 0) {
+    focusOn(fit)
+  }
+}
+
+watch(() => props.focus?.key, () => {
+  if (props.focus) {
+    focusTarget(props.focus.target)
+  }
+})
+
+// A geography is in view once its outline is on the map.
+watch([focusGeoid, () => props.choroplethFeatures], ([geoid, features]) => {
+  const feature = geoid ? features?.find(f => f.properties?.geoid === geoid) : undefined
+  if (feature) {
+    focusGeoid.value = null
+    focusOn([feature])
+  }
+})
 </script>
 
 <style scoped lang="scss">

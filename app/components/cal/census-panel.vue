@@ -30,6 +30,10 @@
         <a href="#" @click.prevent="$emit('viewDetails')">
           View census details for this area →
         </a>
+        <!-- Its row in the Reports tab's Stops (Aggregated) table. -->
+        <a v-if="inTable" href="#" @click.prevent="$emit('seeInTable')">
+          See in data table →
+        </a>
       </div>
 
       <cat-tabs v-model="activeTab" expanded>
@@ -104,11 +108,14 @@ const props = defineProps<{
   layerLabel?: string
   geography?: CensusPanelGeography | null
   analysisArea?: CensusPanelAnalysisArea | null
+  // A row of the Stops (Aggregated) table, which "See in data table" opens.
+  inTable?: boolean
 }>()
 
 defineEmits<{
   close: []
   viewDetails: []
+  seeInTable: []
 }>()
 
 const { choroplethElement, unitSystem } = useScenarioDisplay()
@@ -259,6 +266,9 @@ function cell (values: CensusPanelValues | null | undefined, col: CensusColumnDe
 }
 
 .cal-census-panel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin-bottom: 8px;
 
   a {
