@@ -80,6 +80,7 @@
 <script setup lang="ts">
 import { ref, shallowRef, computed, toRaw, watch, toRef } from 'vue'
 import { useToggle } from '@vueuse/core'
+import { useToastNotification } from '~/composables/useToastNotification'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo, QueryPolygon } from '~~/src/core'
 import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale, isPolygonal, polygonBbox } from '~~/src/core'
@@ -1174,11 +1175,12 @@ function handleSeeInTable (feature: PopupFeature) {
 const focusFeatures = shallowRef<Feature[]>([])
 const focusKey = ref(0)
 
-// The focused feature, followed until the user moves or clicks the map, or
-// something else is focused: a feature not drawn yet (flex areas wait for
-// flex services, just turned on; an aggregation area for its outline) is
-// shown once it is, and one whose shape changes (an area's full outline,
-// then its clipped one once the aggregation refetch lands) is shown again.
+// A focus waiting on the map: a flex area until it is drawn (flex services
+// were just turned on for it), and an aggregation area for as long as its
+// outline changes (the full outline, then the clipped one once the
+// aggregation refetch lands) while it stays selected. Anything else is shown
+// at once or not at all. Dropped when the user moves or clicks the map, or
+// something else is focused.
 const pendingFocus = shallowRef<CrossrefTarget | null>(null)
 // The coordinates last shown, which stay the same object while the shape does.
 let focusedShape: unknown
@@ -1273,7 +1275,12 @@ function showPendingFocus () {
   }
   focusedShape = shape
   showFocus(target, feature)
+  if (target.kind !== 'geography') {
+    pendingFocus.value = null
+  }
 }
+
+const { showToast } = useToastNotification()
 
 function focusTarget (target: CrossrefTarget) {
   emit('selectionCleared')
@@ -1283,14 +1290,30 @@ function focusTarget (target: CrossrefTarget) {
   focusedShape = undefined
   pendingFocus.value = target
   showPendingFocus()
+  // Only flex and aggregation areas are drawn later; anything else the map
+  // isn't drawing is hidden by the filters or has no shape.
+  if (pendingFocus.value && target.kind !== 'flex' && target.kind !== 'geography') {
+    pendingFocus.value = null
+    showToast('Not shown on the map with the current filters', 'warning')
+  }
 }
 
+// A cleared request, as for a new run, drops a focus still waiting.
 watch(() => props.focus?.key, () => {
   if (props.focus) {
     focusTarget(props.focus.target)
+  } else {
+    pendingFocus.value = null
   }
 })
 watch(() => (pendingFocus.value ? featureFor(pendingFocus.value) : undefined), showPendingFocus)
+// An aggregation area is followed only while it is the one selected.
+watch(() => props.selectedGeoid, (geoid) => {
+  const target = pendingFocus.value
+  if (target?.kind === 'geography' && target.geoid !== geoid) {
+    pendingFocus.value = null
+  }
+})
 
 // The selected aggregation area, drawn over everything in the highlight color.
 const NO_FEATURES: Feature[] = []

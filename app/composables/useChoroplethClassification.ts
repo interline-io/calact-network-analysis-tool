@@ -22,7 +22,6 @@ interface UseChoroplethClassificationInput {
   choroplethAggregateData: ComputedRef<Array<Record<string, unknown>>>
   censusGeographies: ComputedRef<Map<string, CensusGeographyData> | undefined>
   choroplethGeoResult: Ref<{ census_datasets: CensusDataset[] } | null | undefined>
-  selectedAggregationGeoid: Ref<string | null>
 }
 
 // Wires the pure choropleth math from `src/core/choropleth.ts` to Vue refs.
@@ -86,7 +85,6 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
     const elementCol = CENSUS_COLUMNS.find(c => c.id === element)
     const elementIsDensityEligible = elementCol?.densityEligible ?? false
     const picked = pickedByGeoid.value
-    const selectedGeoid = input.selectedAggregationGeoid.value
 
     const features: Feature[] = []
     for (const agg of aggData) {
@@ -102,7 +100,6 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
       const featureId = censusGeo?.id ?? geo?.id
       if (!geometry || featureId == null) { continue }
 
-      const isSelected = aggRow.geoid === selectedGeoid
       const pickedValue = picked.get(aggRow.geoid as string) ?? null
       const fullValue = (aggRow[element] ?? null) as number | null
 
@@ -143,9 +140,11 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
           'shaded_density_value': densityValue,
           'fill': getChoroplethColor(pickedValue, palette, breaks),
           'fill-opacity': 0.45,
-          'stroke': isSelected ? '#dc3545' : '#333',
-          'stroke-width': isSelected ? 3 : 1.5,
-          'stroke-opacity': isSelected ? 1 : 0.7,
+          // The selected area is drawn over these by the map, in the
+          // highlight color.
+          'stroke': '#333',
+          'stroke-width': 1.5,
+          'stroke-opacity': 0.7,
         }
       })
     }

@@ -678,8 +678,21 @@ function resetPaging () {
 // Reset pagination when data changes (e.g. tab switch, filter update).
 // Scrolling, a refresh of the same rows keeps those loaded; resetKey says
 // when the rows are new.
+// Once a row is revealed, its page is kept as the rows refresh (as when the
+// aggregation refetch lands just after), until the reader pages, sorts or
+// filters; the page set here doesn't count as theirs.
+let keepHighlightPage = false
+let settingPage = false
+watch(current, () => {
+  if (!settingPage) {
+    keepHighlightPage = false
+  }
+})
 watch(() => tableReport.value?.data, () => {
-  current.value = 1
+  if (!keepHighlightPage || !showHighlightPage()) {
+    keepHighlightPage = false
+    current.value = 1
+  }
 })
 
 // Reset when the sort changes, so the user sees the new top of the list, or
@@ -926,16 +939,12 @@ function onRowClick (row: Record<string, any>, event: MouseEvent) {
   if (rowActionsOf(row).length === 0) {
     return
   }
+  // Spent by this click, whatever it lands on.
+  const dismissed = dismissedRow === row
+  dismissedRow = null
   const rowEl = event.currentTarget as HTMLElement
   const control = (event.target as Element | null)?.closest(ROW_CLICK_IGNORES)
-  if (control && rowEl.contains(control)) {
-    return
-  }
-  if (window.getSelection()?.toString().trim()) {
-    return
-  }
-  if (dismissedRow === row) {
-    dismissedRow = null
+  if (dismissed || (control && rowEl.contains(control)) || window.getSelection()?.toString().trim()) {
     return
   }
   openRowMenu(row, rowEl, { x: event.clientX, y: event.clientY + 4 })
@@ -1035,22 +1044,35 @@ function flash (key: string) {
 }
 onBeforeUnmount(() => clearTimeout(flashTimer))
 
+// Moves to the highlighted row's page, if it is in the rows shown.
+function showHighlightPage (): boolean {
+  const target = props.highlightRowKey
+  const index = target == null ? -1 : sortedData.value.findIndex(row => rowKeyOf(row) === target)
+  if (index < 0) {
+    return false
+  }
+  settingPage = true
+  current.value = Math.floor(index / props.perPage) + 1
+  nextTick(() => {
+    settingPage = false
+  })
+  return true
+}
+
 // After mount too, so a table opened to reveal a row does.
 watch(() => props.revealKey, async (key) => {
   const target = props.highlightRowKey
   if (key == null || target == null || !props.rowKey || props.groupKey || props.scroll) {
     return
   }
-  const indexOfTarget = () => sortedData.value.findIndex(row => rowKeyOf(row) === target)
-  let index = indexOfTarget()
-  if (index < 0 && query.value && (tableReport.value?.data ?? []).some(row => rowKeyOf(row) === target)) {
+  if (query.value && !sortedData.value.some(row => rowKeyOf(row) === target)
+    && (tableReport.value?.data ?? []).some(row => rowKeyOf(row) === target)) {
     // Its page is set after the filter's own reset to the first page.
     searchQuery.value = ''
     await nextTick()
-    index = indexOfTarget()
   }
-  if (index >= 0) {
-    current.value = Math.floor(index / props.perPage) + 1
+  if (showHighlightPage()) {
+    keepHighlightPage = true
     await nextTick()
     const rowEl = table.value?.querySelector('tbody tr.cal-datagrid-row-highlighted')
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches

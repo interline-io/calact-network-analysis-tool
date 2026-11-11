@@ -1177,6 +1177,13 @@ function seeOnMap (target: CrossrefTarget) {
   activeTab.value = { tab: 'map', sub: '' }
 }
 
+// A row is brought into view on the visit that asked for it, not a later one.
+watch(() => activeTab.value.tab, (tab) => {
+  if (tab !== 'report') {
+    tableRevealKey.value = undefined
+  }
+})
+
 // A new run's tables start fresh.
 function resetCrossref () {
   reportTableViews.value = {}
@@ -1286,7 +1293,6 @@ const { choroplethClassification, choroplethFeatures } = useChoroplethClassifica
   choroplethAggregateData,
   censusGeographies: computed(() => scenarioFilterResult.value?.censusGeographies),
   choroplethGeoResult,
-  selectedAggregationGeoid,
 })
 
 // Whether runs fetch through the BFF or straight from the browser.

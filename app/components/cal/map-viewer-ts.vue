@@ -982,10 +982,14 @@ function updateHighlight (popupFeature: PopupFeature | undefined) {
   let matchingFeature: Feature | undefined
 
   if (sourceLayer === 'flexPolygons') {
-    // For flex features, match by location_id in properties (since that's what we use as featureId)
+    // For flex features, match by location_id in properties (since that's
+    // what we use as featureId), and by feed when the popup has it, as a
+    // location_id is unique only within its feed.
+    const feed = popupFeature.data?.feed_onestop_id
     matchingFeature = flexFeatures.value.find(f =>
-      f.properties?.location_id?.toString() === featureId.toString()
-      || f.id?.toString() === featureId.toString()
+      (f.properties?.location_id?.toString() === featureId.toString()
+        || f.id?.toString() === featureId.toString())
+      && (!feed || f.properties?.feed_onestop_id === feed)
     )
   } else if (sourceLayer === 'lines') {
     matchingFeature = features.value.find(f => f.id?.toString() === featureId.toString() && (f.geometry?.type === 'LineString' || f.geometry?.type === 'MultiLineString'))
