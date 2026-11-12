@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { chunkArray, collectPolygons, hasSearchArea, queryAreaVariables, type Geometry, type GraphQLClient, type CensusValues, type QueryArea } from '~~/src/core'
+import { censusGeographyName, chunkArray, collectPolygons, hasSearchArea, queryAreaVariables, type Geometry, type GraphQLClient, type CensusValues, type QueryArea } from '~~/src/core'
 import { parseAcsValues } from './census'
 
 // Single source of truth for the Transitland `census_datasets.geographies`
@@ -360,7 +360,7 @@ export async function fetchCensusIntersection (
         type: 'Feature',
         properties: {
           geography_id: geography.id,
-          name: geography.name,
+          name: censusGeographyName(geography.layer_name, geography.geoid, geography.name),
           dataset_name: geoDataset.name,
           layer_name: geography.layer_name,
           geoid: geography.geoid,

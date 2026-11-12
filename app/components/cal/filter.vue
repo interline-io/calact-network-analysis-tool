@@ -188,6 +188,7 @@ import {
   PANEL_PADDING,
   FILTER_MAIN_WIDTH,
   FILTER_SUB_WIDTH,
+  censusGeographyStateName,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
@@ -230,7 +231,7 @@ const geographicBoundaryLabel = computed(() => {
   }
   if (geomSource.value === 'adminBoundary' && props.censusGeographiesSelected?.length) {
     return props.censusGeographiesSelected
-      .map(g => g.adm1_name ? `${g.name}, ${g.adm1_name}` : g.name)
+      .map(censusGeographyStateName)
       .join('; ')
   }
   if (geomSource.value === 'mapExtent') {

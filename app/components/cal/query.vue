@@ -405,6 +405,7 @@ import {
   type QueryPolygon,
   type SavedGeography,
   type SaveGeographyRequest,
+  censusGeographyStateName,
 } from '~~/src/core'
 import { type CensusDataset, type CensusGeography, geographySearchQuery, parseFvids } from '~~/src/tl'
 import CalFeedVersionPickerModal from '~/components/cal/feed-version-picker-modal.vue'
@@ -664,7 +665,7 @@ const saveRequest = computed((): SaveGeographyRequest | null => {
   }
   if (geomSource.value === 'adminBoundary' && adminSaveReady.value) {
     const geos = props.censusGeographiesSelected || []
-    const names = geos.map(g => g.adm1_name ? `${g.name}, ${g.adm1_name}` : g.name)
+    const names = geos.map(censusGeographyStateName)
     const outlines = geos.map(g => g.geometry).filter(isPolygonal)
     return {
       defaultName: names.length <= 3 ? names.join('; ') : `${names.slice(0, 2).join('; ')} and ${names.length - 2} more`,
@@ -735,10 +736,13 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string,
   // Convert `options` into Array with `value` and `label` props. The dropdown
   // shows `name` with `layerName` as a tag; selected tags and screen reader
   // announcements use `label`, which keeps the layer in parentheses.
+  // Tracts and block groups show a name built from the GEOID, but the server
+  // searches the name TIGER stores ("51.02" for a tract, none for a block
+  // group), so typing the shown name finds nothing. They can still be picked
+  // on the map.
   const results = []
   for (const geo of options.values()) {
-    const stateDesc = geo.adm1_name ? `, ${geo.adm1_name}` : ''
-    const name = `${geo.name}${stateDesc}`
+    const name = censusGeographyStateName(geo)
     const layerName = geo.layer.description || geo.layer.name
     results.push({ value: geo.id, label: `${name} (${layerName})`, name, layerName })
   }

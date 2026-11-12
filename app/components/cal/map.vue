@@ -83,7 +83,7 @@ import { useToggle } from '@vueuse/core'
 import { useToastNotification } from '~/composables/useToastNotification'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo, QueryPolygon } from '~~/src/core'
-import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale, isPolygonal, polygonBbox } from '~~/src/core'
+import { bboxString, categoricalColors, censusGeographyStateName, routeTypeNames, flexColors, createCategoryColorScale, isPolygonal, polygonBbox } from '~~/src/core'
 import { buildStyleData, clusterDisplayName, crossrefKey, flexTarget, popupFeatureTarget, visibleAgencyIds, type CrossrefRequest, type CrossrefTarget, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
 
 const emit = defineEmits<{
@@ -528,14 +528,13 @@ const selectableGeographies = computed((): Feature[] => {
   for (const geo of props.viewportGeographies || []) {
     viewportIds.add(geo.id)
     const isSelected = selectedIds.has(geo.id)
-    const stateDesc = geo.adm1_name ? `, ${geo.adm1_name}` : ''
     features.push({
       type: 'Feature',
       id: geo.id.toString(),
       geometry: geo.geometry,
       properties: {
         'geography-id': geo.id,
-        'geography-name': `${geo.name}${stateDesc}`,
+        'geography-name': censusGeographyStateName(geo),
         'selected': isSelected,
         'clickable': true,
         'fill': isSelected ? '#dc3545' : '#cccccc',
@@ -556,7 +555,6 @@ const selectableGeographies = computed((): Feature[] => {
     if (geo.layer?.name === geomLayer.value) {
       continue
     }
-    const stateDesc = geo.adm1_name ? `, ${geo.adm1_name}` : ''
     const layerDesc = geo.layer?.description || geo.layer?.name || ''
     features.push({
       type: 'Feature',
@@ -564,7 +562,7 @@ const selectableGeographies = computed((): Feature[] => {
       geometry: geo.geometry,
       properties: {
         'geography-id': geo.id,
-        'geography-name': `${geo.name}${stateDesc} (${layerDesc})`,
+        'geography-name': `${censusGeographyStateName(geo)} (${layerDesc})`,
         'selected': true,
         'clickable': false,
         'fill': '#e88e96',

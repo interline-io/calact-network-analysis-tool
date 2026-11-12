@@ -821,21 +821,12 @@ watch(showCensusDetails, (open) => {
   if (!open) { highlightedCensusGeoid.value = null }
 })
 
-// Names come from stops.census_geographies — the only source today.
 const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
   const result = scenarioFilterResult.value
   if (!result?.censusGeographies) {
     return []
   }
-  const nameMap = new Map<string, string>()
-  for (const stop of result.stops || []) {
-    for (const g of stop.census_geographies || []) {
-      if (g.name && !nameMap.has(g.geoid)) {
-        nameMap.set(g.geoid, g.name)
-      }
-    }
-  }
-  return censusGeographyMapToEntries(result.censusGeographies, aggClipMode.value, geoid => nameMap.get(geoid))
+  return censusGeographyMapToEntries(result.censusGeographies, aggClipMode.value)
 })
 
 const {

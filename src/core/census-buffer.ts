@@ -33,7 +33,6 @@ export interface CensusGeographyEntry {
 export function censusGeographyMapToEntries (
   m: Map<string, CensusGeographyData> | undefined,
   mode: AggClipMode,
-  nameFor?: (geoid: string) => string | undefined,
 ): CensusGeographyEntry[] {
   if (!m) {
     return []
@@ -42,7 +41,7 @@ export function censusGeographyMapToEntries (
   for (const [geoid, data] of m) {
     out.push({
       geoid,
-      name: nameFor?.(geoid) ?? data.name ?? undefined,
+      name: data.name ?? undefined,
       layer: data.layer,
       geometryArea: data.geometryArea,
       intersectionArea: censusApportionArea(data, mode),

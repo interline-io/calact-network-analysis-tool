@@ -382,3 +382,16 @@ export const censusLayerLabels: Record<string, { singular: string, plural: strin
   'uac20': { singular: 'Urban Area', plural: 'urban areas' },
   'fta-uac20-nonurban': { singular: 'Non-urban Area', plural: 'non-urban areas' },
 }
+
+// Census layers from smallest to largest, the order the layer dropdowns list
+// them in (#468). Layers not named here follow, alphabetically by label.
+export const CENSUS_LAYER_SIZE_ORDER = [
+  'bg',
+  'tract',
+  'place',
+  'county',
+  'uac20',
+  'cbsa',
+  'csa',
+  'state',
+]

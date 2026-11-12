@@ -34,10 +34,11 @@ const BBOX: Bbox = parseBbox('-122.69075,45.51358,-122.66809,45.53306')
 
 // Known geographies in the bbox with total population (b01003_001) pinned to the
 // rebuild-census.sh test DB (acsdt5y2021). Block group 1500000US410510051012 nests
-// under tract 1400000US41051005101.
+// under tract 1400000US41051005101. `storedName` is TIGER's NAME as the server
+// holds it (block groups have none); `name` is what the app shows (#468).
 const CASES = [
-  { layer: 'tract', geoid: '1400000US41051005101', name: 'Census Tract 51.01', pop: 3353 },
-  { layer: 'bg', geoid: '1500000US410510051012', name: 'Block Group 2', pop: 1843 },
+  { layer: 'tract', geoid: '1400000US41051005101', storedName: '51.01', name: 'Census Tract 51.01', pop: 3353 },
+  { layer: 'bg', geoid: '1500000US410510051012', storedName: '', name: 'Block Group 2, Census Tract 51.01', pop: 1843 },
 ]
 
 // Census-only config: includeFixedRoute:false drops stops/routes/departures/buffers and
@@ -125,7 +126,7 @@ describe('scenario census pipeline (hermetic)', () => {
       const client = new MockGraphQLClient()
       client.mockQuery
         .mockResolvedValueOnce({ data: { feeds: [] } }) // feed-versions phase
-        .mockResolvedValueOnce(censusResponse(c.geoid, c.layer, c.name, c.pop)) // census-values phase
+        .mockResolvedValueOnce(censusResponse(c.geoid, c.layer, c.storedName, c.pop)) // census-values phase
         .mockResolvedValue({ data: {} })
 
       const config = censusConfig(c.layer)
@@ -192,6 +193,12 @@ describe('scenario census pipeline (integration)', () => {
       const known = data.censusGeographies!.get(c.geoid)
       expect(known, `expected ${c.geoid} in the downtown-Portland ${c.layer} results`).toBeDefined()
       expect(known!.values['b01003_001']).toBe(c.pop)
+      expect(known!.name).toBe(c.name)
+
+      // Its row in the aggregation table carries the same name.
+      const row = stopGeoAggregateCsv([], c.layer, new Map(), data.censusGeographies)
+        .find(r => r.geoid === c.geoid)
+      expect(row?.name).toBe(c.name)
     }, 120000)
   }
 })

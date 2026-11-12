@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import type { CensusValues, Geometry, GraphQLClient } from '~~/src/core'
+import { censusGeographyName, type CensusValues, type Geometry, type GraphQLClient } from '~~/src/core'
 import { parseAcsValues } from './census'
 
 // #315 — per-entity buffer ∩ census intersections + inline ACS values.
@@ -41,6 +41,7 @@ export interface BufferEntityResponse {
 export interface BufferGeographyResponse {
   geoid: string
   layer_name: string
+  name: string | null
   geometry_area: number | null
   intersection_area: number | null
   geometry?: GeoJSON.MultiPolygon
@@ -88,6 +89,7 @@ export const stopsBufferQuery = gql`
       ) {
         geoid
         layer_name
+        name
         geometry_area
         intersection_area
         geometry @include(if: $includeGeometry)
@@ -119,6 +121,7 @@ export const routesBufferQuery = gql`
       ) {
         geoid
         layer_name
+        name
         geometry_area
         intersection_area
         geometry @include(if: $includeGeometry)
@@ -150,6 +153,7 @@ export const agenciesBufferQuery = gql`
       ) {
         geoid
         layer_name
+        name
         geometry_area
         intersection_area
         geometry @include(if: $includeGeometry)
@@ -178,6 +182,7 @@ export function parseGeographyRow (g: BufferGeographyResponse, tableDataset: str
   return {
     geoid: g.geoid,
     layer: g.layer_name,
+    name: censusGeographyName(g.layer_name, g.geoid, g.name),
     geometryArea,
     intersectionArea: g.intersection_area ?? 0,
     values,

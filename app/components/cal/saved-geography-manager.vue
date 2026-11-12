@@ -101,7 +101,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useApolloClient } from '@vue/apollo-composable'
 import { useDownload } from '@interline-io/catenary'
-import { fmtDate, isAdminBoundaryDocument, isFavorite, type SavedGeography } from '~~/src/core'
+import { censusGeographyName, fmtDate, isAdminBoundaryDocument, isFavorite, type SavedGeography } from '~~/src/core'
 import { geographyLayerQuery, type CensusDataset } from '~~/src/tl/census'
 import { useInterlineAccountUrl } from '~/composables/useInterlineAccount'
 import { iwaErrorMessage, useSavedGeographies } from '~/composables/useSavedGeographies'
@@ -183,7 +183,7 @@ function download (g: SavedGeography) {
         type: 'FeatureCollection',
         features: found.map(x => ({
           type: 'Feature',
-          properties: { name: x.name, geoid: x.geoid, layer: x.layer?.name, dataset: doc.dataset },
+          properties: { name: censusGeographyName(x.layer?.name, x.geoid, x.name), geoid: x.geoid, layer: x.layer?.name, dataset: doc.dataset },
           geometry: x.geometry,
         })),
       }
