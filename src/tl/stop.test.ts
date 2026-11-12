@@ -234,14 +234,14 @@ describe('stopGeoAggregateCsv', () => {
   describe('buffer-reached geographies', () => {
     const censusGeographies = new Map([
       ['41051000100', {
-        id: 1, name: 'Tract 1', values: {}, intersectionRatio: 1,
+        id: 1, name: '1', values: {}, intersectionRatio: 1,
         geometryArea: 1000, intersectionArea: 1000,
       }],
     ])
     const bufferGeographies = [
-      { geoid: '41051000100', layer: 'tract', name: 'Tract 1', geometryArea: 1000, intersectionArea: 500, values: { b01003_001: 800 } },
+      { geoid: '41051000100', layer: 'tract', name: '1', geometryArea: 1000, intersectionArea: 500, values: { b01003_001: 800 } },
       // Outside the query area — only the buffer reaches it.
-      { geoid: '41051000200', layer: 'tract', name: 'Tract 2', geometryArea: 1000, intersectionArea: 250, values: { b01003_001: 400 } },
+      { geoid: '41051000200', layer: 'tract', name: '2', geometryArea: 1000, intersectionArea: 250, values: { b01003_001: 400 } },
     ]
 
     it('seeds a row for a geography only the buffer reaches', () => {
@@ -250,8 +250,8 @@ describe('stopGeoAggregateCsv', () => {
       })
       const byGeoid = new Map(rows.map(r => [r.geoid, r]))
       expect([...byGeoid.keys()].sort()).toEqual(['41051000100', '41051000200'])
-      // Named from the buffer pass, and apportioned by its own coverage.
-      expect(byGeoid.get('41051000200')?.name).toBe('Tract 2')
+      // Named for its tract, and apportioned by its own coverage.
+      expect(byGeoid.get('41051000200')?.name).toBe('Census Tract 2')
       expect(byGeoid.get('41051000200')?.total_population).toBeCloseTo(100)
       expect(byGeoid.get('41051000200')?.stops_count).toBe(0)
     })

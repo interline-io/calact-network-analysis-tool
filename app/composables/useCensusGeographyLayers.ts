@@ -7,6 +7,7 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { geographyLayerQuery, type CensusDataset, type CensusGeography } from '~~/src/tl'
+import { sortCensusLayerOptions } from '~~/src/core'
 import { useScenarioInputs } from '~/composables/useScenarioInputs'
 
 export interface CensusGeographyLayerOption {
@@ -69,7 +70,7 @@ export function useCensusGeographyLayers (geographyIds: Ref<number[]>): UseCensu
         options.push({ value: layer.name, label: formatCensusLayerLabel(ds.name, layer.name) })
       }
     }
-    return options
+    return sortCensusLayerOptions(options)
   })
 
   const censusGeographiesSelected = computed<CensusGeography[]>(() => {

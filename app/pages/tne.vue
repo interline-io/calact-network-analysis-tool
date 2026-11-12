@@ -332,6 +332,7 @@ import {
   censusPanelAnalysisArea,
   censusPanelGeography,
   censusGeographyMapToEntries,
+  censusGeographyName,
   type CensusGeographyEntry,
   type FilterTag,
   QUERY_PANEL_WIDTH,
@@ -831,7 +832,7 @@ const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
   for (const stop of result.stops || []) {
     for (const g of stop.census_geographies || []) {
       if (g.name && !nameMap.has(g.geoid)) {
-        nameMap.set(g.geoid, g.name)
+        nameMap.set(g.geoid, censusGeographyName(g.layer_name, g.geoid, g.name))
       }
     }
   }

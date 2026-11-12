@@ -10,6 +10,7 @@
 
 import { computed, markRaw, ref, watch } from 'vue'
 import {
+  censusGeographyName,
   isAdminBoundaryDocument,
   isUploadDocument,
   mergePolygons,
@@ -232,7 +233,7 @@ export function useQueryGeography (censusGeographiesSelected: () => CensusGeogra
     }
     return [{
       variant: 'warning',
-      text: `The census data has changed since this was saved, so ${changed.length === 1 ? 'this boundary' : 'these boundaries'} may not match: ${changed.map(g => g.name).join('; ')}. Select the boundaries again and save them anew.`,
+      text: `The census data has changed since this was saved, so ${changed.length === 1 ? 'this boundary' : 'these boundaries'} may not match: ${changed.map(g => censusGeographyName(g.layer, g.geoid, g.name)).join('; ')}. Select the boundaries again and save them anew.`,
     }]
   })
 
