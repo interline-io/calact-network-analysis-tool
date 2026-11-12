@@ -106,9 +106,13 @@
 
     <!-- Kept out of the scrolling content, so a long cluster member list
          never hides the actions or the pager. -->
-    <footer v-if="hasTripsAction || hasMultiple" class="cal-popup-footer">
-      <div v-if="hasTripsAction" class="cal-popup-actions">
-        <button class="button is-small" @click="$emit('showTrips', feature.featureType, feature.featureId)">
+    <footer v-if="hasActions || hasMultiple" class="cal-popup-footer">
+      <div v-if="hasActions" class="cal-popup-actions">
+        <button
+          v-if="hasTripsAction"
+          class="button is-small"
+          @click="$emit('showTrips', feature.featureType, feature.featureId)"
+        >
           <span class="icon is-small"><i class="mdi mdi-bus-clock" /></span>
           <span>Show trip information</span>
         </button>
@@ -119,6 +123,15 @@
         >
           <span class="icon is-small"><i class="mdi mdi-transit-transfer" /></span>
           <span>Enter Transfer Analyst</span>
+        </button>
+        <!-- Its row in the Reports tab's table, where it is one. -->
+        <button
+          v-if="feature.inTable"
+          class="button is-small"
+          @click="$emit('seeInTable')"
+        >
+          <span class="icon is-small"><i class="mdi mdi-table-eye" /></span>
+          <span>See in data table</span>
         </button>
       </div>
 
@@ -157,6 +170,8 @@ export interface PopupFeatureData {
   featureType: 'stop' | 'route' | 'flex' | 'cluster'
   featureId: string | number
   sourceLayer: string
+  // A row of a Reports table, which "See in data table" opens.
+  inTable?: boolean
   data: {
     // Stop fields
     stop_id?: string
@@ -174,6 +189,7 @@ export interface PopupFeatureData {
     frequency_directions_differ?: boolean
     // Flex fields
     location_id?: string
+    feed_onestop_id?: string
     location_name?: string
     route_names?: string
     area_type?: string
@@ -202,12 +218,15 @@ defineEmits<{
   showTrips: [featureType: PopupFeatureData['featureType'], featureId: string | number]
   // A stop's or cluster's transfers, in the Reports tab.
   openTransfers: [featureType: PopupFeatureData['featureType'], featureId: string | number]
+  // Its row, in the Reports tab.
+  seeInTable: []
 }>()
 
 const hasMultiple = computed(() => props.total > 1)
 
 const hasTripsAction = computed(() => ['stop', 'route', 'cluster'].includes(props.feature.featureType))
 const hasTransfersAction = computed(() => ['stop', 'cluster'].includes(props.feature.featureType))
+const hasActions = computed(() => hasTripsAction.value || !!props.feature.inTable)
 </script>
 
 <style scoped lang="scss">

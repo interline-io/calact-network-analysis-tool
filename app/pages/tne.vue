@@ -74,14 +74,21 @@
         <div v-if="activeTab.tab === 'report'" class="cal-tab-content cal-tab-report">
           <cal-report
             v-model:tab="reportTab"
+            v-model:table-views="reportTableViews"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :scenario-filter-result="scenarioFilterResult"
             :export-features="exportFeatures"
             :filter-tags="filterTags"
             :flex-display-features="flexFeaturesForReport"
+            :highlight="tableHighlight"
+            :reveal-key="tableRevealKey"
             @open-buffer-details="openBufferDetails"
             @open-trips="openReportTrips"
             @open-transfers="openTransfers"
+            @see-on-map="seeOnMap"
+            @open-census-details="openCensusDetails"
+            @revealed="tableRevealKey = undefined"
+            @clear-highlight="tableHighlight = null"
           >
             <template #transfers>
               <cal-transfer-report
@@ -151,6 +158,8 @@
           :fit-overlay-key="fitOverlayKey"
           :sidebar-panel-open="!!tripPanelSubject || !!selectedPanelData?.row"
           :clear-selection-key="mapSelectionClearKey"
+          :focus="mapFocus"
+          :selected-geoid="selectedAggregationGeoid"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
@@ -158,6 +167,7 @@
           @view-census-details="openCensusDetails"
           @show-trips="openTripPanel"
           @open-transfers="openTransfers"
+          @see-in-table="seeInTable"
           @selection-cleared="closeTripPanel"
         >
           <template #sidebar-top>
@@ -182,8 +192,10 @@
               :layer-label="aggregateLayerLabel"
               :geography="selectedPanelData?.geography ?? null"
               :analysis-area="analysisAreaPanelData"
+              :in-table="fixedRouteEnabled"
               @close="selectedAggregationGeoid = null"
               @view-details="openCensusDetails(selectedAggregationGeoid ?? undefined)"
+              @see-in-table="selectedAggregationGeoid && seeInTable({ kind: 'geography', geoid: selectedAggregationGeoid })"
             />
           </template>
         </cal-map>
@@ -283,12 +295,13 @@ import { useBufferDetails } from '~/composables/useBufferDetails'
 import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel'
 import type { TripDetailsTab } from '~/components/cal/trip-details.vue'
 import type { TransferReportSection, TransferReportView } from '~/components/cal/transfer/report.vue'
-import type { ReportTab } from '~/components/cal/report.vue'
+import type { DatagridView } from '~/components/cal/datagrid.vue'
 import { transferSubjectFromKey, transferSubjectKey, useSubjectTransfers, type TransferStopEdits } from '~/composables/useSubjectTransfers'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import { useQueryGeography } from '~/composables/useQueryGeography'
 import { useFetchMode } from '~/composables/useFetchMode'
+import { useToastNotification } from '~/composables/useToastNotification'
 import {
   geographyLayerQuery,
   geographyBboxQuery,
@@ -327,7 +340,7 @@ import {
   STOP_CLUSTER_DEFAULT_DISTANCE,
 } from '~~/src/core'
 import { useRouter } from '#imports'
-import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TransferRose, type TripSubject, decodeTransferSettings, encodeTransferSettings } from '~~/src/scenario'
+import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TransferRose, type TripSubject, decodeTransferSettings, encodeTransferSettings, crossrefReportTab, displayModeForReportTab, type CrossrefRequest, type CrossrefTarget, type ReportTab } from '~~/src/scenario'
 
 // Initialize composables
 const { query, setQuery } = useUrlQuery()
@@ -337,6 +350,7 @@ const {
   aggregateLayer,
   onlyWithStops,
   showBbox,
+  dataDisplayMode,
 } = useScenarioDisplay()
 const {
   bbox,
@@ -354,6 +368,7 @@ const {
   stopBufferRadius,
   stopBufferLayer,
   clusterDistance,
+  fixedRouteEnabled,
 } = useScenarioInputs()
 const {
   startTime,
@@ -370,6 +385,7 @@ const {
   fareMax,
   fareMin,
   clusterMaxTransferMinutes,
+  flexServicesEnabled,
 } = useScenarioFilters()
 
 definePageMeta({
@@ -384,6 +400,7 @@ function clearScenario () {
   scenarioData.value = undefined
   scenarioFilterResult.value = undefined
   exportFeatures.value = []
+  resetCrossref()
   querySubmitted.value = false
   closeTripPanel()
   showTripTable.value = false
@@ -446,6 +463,7 @@ watch(cannedBbox, () => { querySubmitted.value = false })
 // modal/toast lifecycle is the shared one in useScenarioStream.
 const runQuery = async () => {
   querySubmitted.value = true
+  resetCrossref()
   activeTab.value = { tab: 'map', sub: '' }
   await runScenarioQuery('Browsing query data loaded successfully!')
 }
@@ -1117,6 +1135,76 @@ function onTripPanelClose () {
   mapSelectionClearKey.value++
 }
 
+// Cross-referencing the map and the Reports tables (#44). Each table's filter,
+// sort and page, kept here because the Reports tab unmounts while the map is
+// shown, so a trip to the map and back finds the table as it was.
+const reportTableViews = ref<Partial<Record<ReportTab, DatagridView>>>({})
+// The row last shown from either side, highlighted in its table; and, set
+// from the map, a request to bring it into view, cleared once done.
+const tableHighlight = shallowRef<CrossrefTarget | null>(null)
+const tableRevealKey = ref<number>()
+// A feature for the map to select and bring into view.
+const mapFocus = shallowRef<CrossrefRequest | null>(null)
+let crossrefCount = 0
+const { showToast } = useToastNotification()
+
+// "See in data table": its table, with the map showing the same kind of
+// feature as the report's tabs do, and its row brought into view.
+function seeInTable (target: CrossrefTarget) {
+  const tab = crossrefReportTab(target)
+  const mode = displayModeForReportTab(tab, dataDisplayMode.value)
+  if (mode) {
+    dataDisplayMode.value = mode
+  }
+  reportTab.value = tab
+  tableHighlight.value = target
+  tableRevealKey.value = ++crossrefCount
+  activeTab.value = { tab: 'report', sub: '' }
+}
+
+// "See on map": the feature selected and in view, its row kept highlighted
+// for the way back. A geography shows on the aggregation overlay, turned on
+// for it, and opens its census panel; a flex area turns on flex services,
+// without which the map draws no flex areas.
+function seeOnMap (target: CrossrefTarget) {
+  tableHighlight.value = target
+  tableRevealKey.value = undefined
+  activeTab.value = { tab: 'map', sub: '' }
+  if (target.kind === 'geography') {
+    showAggAreas.value = true
+    selectedAggregationGeoid.value = target.geoid
+    // The overlay leaves out an area its clip doesn't reach; its census
+    // panel still opens.
+    if (!choroplethAggregateData.value.some(r => r.geoid === target.geoid)) {
+      mapFocus.value = null
+      showToast('Not drawn on the map with the current clipping mode', 'warning')
+      return
+    }
+  } else {
+    // One selection at a time on the map.
+    selectedAggregationGeoid.value = null
+    if (target.kind === 'flex') {
+      flexServicesEnabled.value = true
+    }
+  }
+  mapFocus.value = { target, key: ++crossrefCount }
+}
+
+// A row is brought into view on the visit that asked for it, not a later one.
+watch(() => activeTab.value.tab, (tab) => {
+  if (tab !== 'report') {
+    tableRevealKey.value = undefined
+  }
+})
+
+// A new run's tables start fresh.
+function resetCrossref () {
+  reportTableViews.value = {}
+  tableHighlight.value = null
+  tableRevealKey.value = undefined
+  mapFocus.value = null
+}
+
 // Unique census geography IDs for the current aggregate layer across all marked stops.
 // Shared base for both the filter summary count and the choropleth geometry fetch.
 const aggregateGeoIds = computed((): number[] => {
@@ -1218,7 +1306,6 @@ const { choroplethClassification, choroplethFeatures } = useChoroplethClassifica
   choroplethAggregateData,
   censusGeographies: computed(() => scenarioFilterResult.value?.censusGeographies),
   choroplethGeoResult,
-  selectedAggregationGeoid,
 })
 
 // Whether runs fetch through the BFF or straight from the browser.

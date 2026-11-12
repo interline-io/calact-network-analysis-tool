@@ -64,6 +64,9 @@ export interface PopupFeature {
   sourceLayer?: string // Source layer name for highlighting (e.g., 'flexPolygons', 'lines', 'points')
   // Structured data for Vue component rendering (preferred - avoids XSS concerns)
   featureType?: 'stop' | 'route' | 'flex' | 'cluster'
+  // Whether the feature is a row of a Reports table, so the popup can offer
+  // to show it there. Features the filters leave out are not.
+  inTable?: boolean
   data?: {
     // Stop fields
     stop_id?: string
@@ -81,6 +84,8 @@ export interface PopupFeature {
     frequency_directions_differ?: boolean
     // Flex fields
     location_id?: string
+    // A location_id is unique only within its feed.
+    feed_onestop_id?: string
     location_name?: string
     route_names?: string
     area_type?: string

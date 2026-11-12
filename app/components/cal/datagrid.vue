@@ -155,8 +155,9 @@
             <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
               <!-- Grouped, the first column laid out as its rows are, indented
                    and bold as a heading, the widest either can be. -->
-              <div class="cal-datagrid-shim-cell" :class="{ 'cal-datagrid-group-cell cal-datagrid-shim-group': isGroupColumn(column) }">
+              <div class="cal-datagrid-shim-cell" :class="{ 'cal-datagrid-group-cell cal-datagrid-shim-group': isGroupColumn(column), 'cal-datagrid-shim-menu': isMenuColumn(column) }">
                 <span v-if="isGroupColumn(column)" class="cal-datagrid-group-indent" />
+                <span v-else-if="isMenuColumn(column)" class="cal-datagrid-row-menu-spacer" />
                 <slot
                   :name="`column-${column.key}`"
                   :row="layoutShimRow"
@@ -169,23 +170,56 @@
             </td>
           </tr>
           <template v-for="(row, idx) in currentRows" :key="row.id ?? row.geoid ?? row.location_id ?? idx">
-            <tr :class="[rowClass?.(row), groupRowClass(row)]">
+            <!-- A row with actions opens their menu when clicked anywhere but
+                 its own buttons and links; the highlighted row is the one the
+                 map last pointed at. -->
+            <tr
+              :class="[rowClass?.(row), groupRowClass(row), {
+                'cal-datagrid-row-actionable': rowActionsOf(row).length > 0,
+                'cal-datagrid-row-highlighted': isHighlighted(row),
+                'cal-datagrid-row-flash': isFlashing(row),
+              }]"
+              @click="onRowClick(row, $event)"
+            >
               <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
                 <!-- An open group's heading leaves its sums to its rows. -->
                 <template v-if="hidesValue(row, column)" />
-                <!-- A group's heading opens and closes the group. -->
-                <span v-else-if="isGroupColumn(column)" class="cal-datagrid-group-cell">
-                  <button
-                    v-if="opensGroup(row)"
-                    type="button"
-                    class="cal-datagrid-group-toggle"
-                    :aria-expanded="!closed.has(groupOf(row))"
-                    :aria-label="`${closed.has(groupOf(row)) ? 'Show' : 'Hide'} rows under ${props.groupLabel?.(row) ?? 'this row'}`"
-                    @click="toggleGroup(groupOf(row))"
-                  >
-                    <cat-icon size="small" :icon="closed.has(groupOf(row)) ? 'chevron-right' : 'chevron-down'" />
-                  </button>
-                  <span v-else :class="isGroupHead(row) ? 'cal-datagrid-group-toggle' : 'cal-datagrid-group-indent'" />
+                <!-- The first cell leads with a control: a group's heading
+                     opens and closes the group; with row actions, the menu's
+                     button, so the menu can be found and reached by keyboard
+                     (a row without actions keeps the space, so names line
+                     up). -->
+                <span v-else-if="isGroupColumn(column) || isMenuColumn(column)" :class="isGroupColumn(column) ? 'cal-datagrid-group-cell' : 'cal-datagrid-row-menu-cell'">
+                  <template v-if="isGroupColumn(column)">
+                    <button
+                      v-if="opensGroup(row)"
+                      type="button"
+                      class="cal-datagrid-group-toggle"
+                      :aria-expanded="!closed.has(groupOf(row))"
+                      :aria-label="`${closed.has(groupOf(row)) ? 'Show' : 'Hide'} rows under ${props.groupLabel?.(row) ?? 'this row'}`"
+                      @click="toggleGroup(groupOf(row))"
+                    >
+                      <cat-icon size="small" :icon="closed.has(groupOf(row)) ? 'chevron-right' : 'chevron-down'" />
+                    </button>
+                    <span v-else :class="isGroupHead(row) ? 'cal-datagrid-group-toggle' : 'cal-datagrid-group-indent'" />
+                  </template>
+                  <template v-else>
+                    <button
+                      v-if="rowActionsOf(row).length > 0"
+                      type="button"
+                      class="cal-datagrid-row-menu-trigger"
+                      aria-haspopup="menu"
+                      :aria-expanded="menuRow === row"
+                      :aria-controls="menuRow === row ? menuId : undefined"
+                      :aria-label="rowMenuLabel(row)"
+                      :title="rowMenuLabel(row)"
+                      @click="onMenuTriggerClick(row, $event)"
+                      @keydown.down.prevent="onMenuTriggerArrow(row, $event)"
+                    >
+                      <cat-icon icon="dots-vertical" size="small" />
+                    </button>
+                    <span v-else class="cal-datagrid-row-menu-spacer" />
+                  </template>
                   <slot
                     :name="`column-${column.key}`"
                     :row="row"
@@ -239,15 +273,68 @@
     <div v-else-if="total === 0" class="has-text-grey mt-4">
       No results found
     </div>
+
+    <!-- A row's actions. Kept out of the table, whose box scrolls sideways
+         and would clip a menu near its bottom edge. -->
+    <Teleport to="body">
+      <div
+        v-if="menuRow"
+        :id="menuId"
+        ref="menuEl"
+        class="cal-datagrid-row-menu"
+        role="menu"
+        :aria-label="rowMenuLabel(menuRow)"
+        :style="{ top: `${menuPos.top}px`, left: `${menuPos.left}px` }"
+        @keydown="onMenuKeydown"
+      >
+        <button
+          v-for="action of rowActionsOf(menuRow)"
+          :key="action.label"
+          type="button"
+          role="menuitem"
+          tabindex="-1"
+          class="cal-datagrid-row-menu-item"
+          @click="runRowAction(action)"
+        >
+          <cat-icon v-if="action.icon" :icon="action.icon" size="small" />
+          <span>{{ action.label }}</span>
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
+import type { ShallowRef } from 'vue'
+import { useEventListener } from '@vueuse/core'
 import { formatCensusValue, toFiniteNumber, type TableColumn, type TableColumnGroup, type TableReport } from '~~/src/core'
+
+// What the reader has done to the table: its filter, sort and page. Bound by
+// a page that unmounts the table, as the Reports tab does whenever the map is
+// shown, so coming back finds the table as it was left.
+export interface DatagridView {
+  search: string | null
+  sortKey: string | null
+  sortDir: 'asc' | 'desc' | null
+  page: number
+}
+
+// One entry in a row's menu.
+export interface DatagridRowAction {
+  label: string
+  icon?: string
+  run: () => void
+}
 
 const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
 const current = defineModel<number>('current', { default: 1 })
+const view = defineModel<DatagridView>('view')
+
+const emit = defineEmits<{
+  // A reveal was carried out.
+  revealed: []
+}>()
 
 function renderCell (column: TableColumn, value: unknown): string {
   if (column.format !== undefined) {
@@ -294,6 +381,19 @@ const props = withDefaults(defineProps<{
   scroll?: boolean
   // Scrolling, what the rows are of: when it changes, loading starts over.
   resetKey?: string
+  // A row's actions, shown in a menu from a button leading its first cell or
+  // a click anywhere on the row. Not for grouped grids, whose first cell holds
+  // the group's button.
+  rowActions?: (row: any) => DatagridRowAction[]
+  // A row's name, for its menu's button ("Actions for …").
+  rowLabel?: (row: any) => string | undefined
+  // A row's identity, for highlightRowKey.
+  rowKey?: (row: any) => string | undefined
+  // The row to highlight, by rowKey.
+  highlightRowKey?: string
+  // Change to bring the highlighted row into view: its page, scrolled to, the
+  // filter cleared if it hides the row. Paged grids only.
+  revealKey?: number
 }>(), {
   // Vue reads a missing boolean prop as false; these default to shown.
   searchable: true,
@@ -301,10 +401,20 @@ const props = withDefaults(defineProps<{
   perPage: 20,
 })
 
+// Restored from the view, if bound, and kept in it from then on. A sort by a
+// column the table no longer has is dropped.
+const initialView = view.value
+const initialSorted = !!initialView?.sortKey && (tableReport.value?.columns ?? []).some(c => c.key === initialView.sortKey)
 // cat-search-bar clears to null (not ''), so the model is nullable.
-const searchQuery = ref<string | null>('')
-const sortKey = ref<string | null>(null)
-const sortDir = ref<'asc' | 'desc' | null>(null)
+const searchQuery = ref<string | null>(initialView?.search ?? '')
+const sortKey = ref<string | null>(initialSorted ? initialView!.sortKey : null)
+const sortDir = ref<'asc' | 'desc' | null>(initialSorted ? initialView!.sortDir : null)
+if (initialView?.page) {
+  current.value = initialView.page
+}
+watch([searchQuery, sortKey, sortDir, current], () => {
+  view.value = { search: searchQuery.value, sortKey: sortKey.value, sortDir: sortDir.value, page: current.value }
+})
 
 // SSR-stable id so the filter's aria-controls can point at this table.
 const tableId = useId()
@@ -568,8 +678,25 @@ function resetPaging () {
 // Reset pagination when data changes (e.g. tab switch, filter update).
 // Scrolling, a refresh of the same rows keeps those loaded; resetKey says
 // when the rows are new.
+// Once a row is revealed, its page is kept as the rows refresh (as when the
+// aggregation refetch lands just after), until the reader pages, sorts or
+// filters; the page set here doesn't count as theirs.
+let keepHighlightPage = false
+let settingPage = false
+watch(current, () => {
+  if (!settingPage) {
+    keepHighlightPage = false
+  }
+})
+// A sort or filter is the reader's too, even when the page stays the same.
+watch([sortKey, sortDir, searchQuery], () => {
+  keepHighlightPage = false
+})
 watch(() => tableReport.value?.data, () => {
-  current.value = 1
+  if (!keepHighlightPage || !showHighlightPage()) {
+    keepHighlightPage = false
+    current.value = 1
+  }
 })
 
 // Reset when the sort changes, so the user sees the new top of the list, or
@@ -706,6 +833,276 @@ const filterStatus = computed(() => {
   const all = tableReport.value?.data?.length ?? 0
   return `Showing ${shown} of ${all} ${all === 1 ? 'row' : 'rows'}`
 })
+
+// A restored page past the end, as when filters changed while the table was
+// away, starts over.
+onMounted(() => {
+  if (!props.scroll && current.value > 1 && (current.value - 1) * props.perPage >= total.value) {
+    current.value = 1
+  }
+})
+
+/////////////////
+// Row actions
+
+// Grouped grids keep their first cell for the group's button.
+const hasRowMenus = computed(() => !!props.rowActions && !props.groupKey)
+
+// The column whose cells lead with a row's menu button.
+function isMenuColumn (column: TableColumn): boolean {
+  return hasRowMenus.value && column === tableReport.value?.columns[0]
+}
+
+function rowActionsOf (row: Record<string, any>): DatagridRowAction[] {
+  return hasRowMenus.value ? props.rowActions!(row) : []
+}
+
+function rowMenuLabel (row: Record<string, any>): string {
+  const name = props.rowLabel?.(row)
+  return name ? `Actions for ${name}` : 'Row actions'
+}
+
+const menuId = useId()
+const menuRow: ShallowRef<Record<string, any> | null> = shallowRef(null)
+const menuPos = ref({ top: 0, left: 0 })
+const menuEl = ref<HTMLElement>()
+// The open menu's row and its button, which focus returns to.
+let menuRowEl: HTMLElement | null = null
+let menuTrigger: HTMLElement | null = null
+// A click on the open menu's own row closes it rather than reopening it.
+let dismissedRow: Record<string, any> | null = null
+// Where the row was when the menu opened.
+let menuRowAt = { top: 0, left: 0 }
+
+function openRowMenu (row: Record<string, any>, rowEl: HTMLElement, at: { x: number, y: number }) {
+  menuRow.value = row
+  menuRowEl = rowEl
+  menuTrigger = rowEl.querySelector<HTMLElement>('.cal-datagrid-row-menu-trigger')
+  const rect = rowEl.getBoundingClientRect()
+  menuRowAt = { top: rect.top, left: rect.left }
+  menuPos.value = { top: at.y, left: at.x }
+  nextTick(() => {
+    // Kept on screen: flipped above the point when there's no room below.
+    const el = menuEl.value
+    if (!el) {
+      return
+    }
+    const margin = 8
+    const { width, height } = el.getBoundingClientRect()
+    let { top, left } = menuPos.value
+    if (top + height > window.innerHeight - margin) {
+      top = Math.max(margin, at.y - height - 8)
+    }
+    left = Math.max(margin, Math.min(left, window.innerWidth - width - margin))
+    menuPos.value = { top, left }
+    el.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+  })
+}
+
+function closeRowMenu (returnFocus = false) {
+  if (!menuRow.value) {
+    return
+  }
+  menuRow.value = null
+  if (returnFocus) {
+    menuTrigger?.focus()
+  }
+  menuRowEl = null
+  menuTrigger = null
+}
+
+function runRowAction (action: DatagridRowAction) {
+  closeRowMenu()
+  action.run()
+}
+
+function onMenuTriggerClick (row: Record<string, any>, event: Event) {
+  if (menuRow.value === row) {
+    closeRowMenu(true)
+    return
+  }
+  const button = event.currentTarget as HTMLElement
+  const rect = button.getBoundingClientRect()
+  openRowMenu(row, button.closest('tr') as HTMLElement, { x: rect.left, y: rect.bottom + 4 })
+}
+
+// ArrowDown on the button opens the menu, or moves into it if open.
+function onMenuTriggerArrow (row: Record<string, any>, event: Event) {
+  if (menuRow.value === row) {
+    menuEl.value?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+    return
+  }
+  onMenuTriggerClick(row, event)
+}
+
+// Cells' own controls do their own thing, and a click that ends a text
+// selection is someone copying a value. Only controls in the row count: the
+// page's landmarks around the table can be focusable too.
+const ROW_CLICK_IGNORES = 'a, button, input, select, textarea, label, summary, [role="button"], [tabindex]:not([tabindex="-1"])'
+function onRowClick (row: Record<string, any>, event: MouseEvent) {
+  if (rowActionsOf(row).length === 0) {
+    return
+  }
+  // Spent by this click, whatever it lands on.
+  const dismissed = dismissedRow === row
+  dismissedRow = null
+  const rowEl = event.currentTarget as HTMLElement
+  const control = (event.target as Element | null)?.closest(ROW_CLICK_IGNORES)
+  if (dismissed || (control && rowEl.contains(control)) || window.getSelection()?.toString().trim()) {
+    return
+  }
+  openRowMenu(row, rowEl, { x: event.clientX, y: event.clientY + 4 })
+}
+
+function onMenuKeydown (event: KeyboardEvent) {
+  const items = [...(menuEl.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
+  const at = items.indexOf(document.activeElement as HTMLElement)
+  let next: number | undefined
+  switch (event.key) {
+    case 'ArrowDown':
+      next = (at + 1) % items.length
+      break
+    case 'ArrowUp':
+      next = (at - 1 + items.length) % items.length
+      break
+    case 'Home':
+      next = 0
+      break
+    case 'End':
+      next = items.length - 1
+      break
+    case 'Escape':
+    case 'Tab':
+      event.preventDefault()
+      closeRowMenu(true)
+      return
+    default:
+      return
+  }
+  event.preventDefault()
+  items[next]?.focus()
+}
+
+// Listened for only while a menu is open. A press anywhere else closes it;
+// on its own row, the click that follows is then ignored.
+const openMenuDocument = () => (menuRow.value ? document : null)
+const openMenuWindow = () => (menuRow.value ? window : null)
+useEventListener(openMenuDocument, 'pointerdown', (event: PointerEvent) => {
+  if (!menuRow.value) {
+    return
+  }
+  const target = event.target as Node
+  if (menuEl.value?.contains(target) || menuTrigger?.contains(target)) {
+    return
+  }
+  dismissedRow = menuRowEl?.contains(target) ? menuRow.value : null
+  // Spent by the click that follows, whatever it lands on; a press dragged
+  // off the row ends in a click on the table instead, which spends it too.
+  window.addEventListener('click', () => {
+    dismissedRow = null
+  }, { once: true })
+  closeRowMenu()
+}, { capture: true })
+// Placed in the window, the menu moves with its row as the page or the
+// table scrolls, and closes once the row is out of view.
+useEventListener(openMenuWindow, 'scroll', () => {
+  if (!menuRowEl) {
+    return
+  }
+  const rect = menuRowEl.getBoundingClientRect()
+  if (rect.bottom < 0 || rect.top > window.innerHeight) {
+    closeRowMenu()
+    return
+  }
+  menuPos.value = {
+    top: menuPos.value.top + rect.top - menuRowAt.top,
+    left: menuPos.value.left + rect.left - menuRowAt.left,
+  }
+  menuRowAt = { top: rect.top, left: rect.left }
+}, { capture: true, passive: true })
+useEventListener(openMenuWindow, 'resize', () => closeRowMenu())
+// Rows refreshed under an open menu, as background data lands, keep it on its
+// row; a row gone from the page closes it.
+watch(currentRows, (rows) => {
+  const open = menuRow.value
+  if (!open) {
+    return
+  }
+  const key = rowKeyOf(open)
+  const same = key == null ? undefined : rows.find(row => rowKeyOf(row) === key)
+  if (same) {
+    menuRow.value = same
+  } else if (!rows.includes(open)) {
+    closeRowMenu()
+  }
+})
+
+/////////////////
+// Highlight and reveal
+
+function rowKeyOf (row: Record<string, any>): string | undefined {
+  return props.rowKey?.(row)
+}
+
+function isHighlighted (row: Record<string, any>): boolean {
+  return props.highlightRowKey != null && rowKeyOf(row) === props.highlightRowKey
+}
+
+// The highlighted row flashes as it comes into view, so the eye finds it.
+const flashKey = ref<string | null>(null)
+let flashTimer: ReturnType<typeof setTimeout> | undefined
+function isFlashing (row: Record<string, any>): boolean {
+  return flashKey.value != null && rowKeyOf(row) === flashKey.value
+}
+function flash (key: string) {
+  clearTimeout(flashTimer)
+  flashKey.value = null
+  nextTick(() => {
+    flashKey.value = key
+    flashTimer = setTimeout(() => {
+      flashKey.value = null
+    }, 2400)
+  })
+}
+onBeforeUnmount(() => clearTimeout(flashTimer))
+
+// Moves to the highlighted row's page, if it is in the rows shown.
+function showHighlightPage (): boolean {
+  const target = props.highlightRowKey
+  const index = target == null ? -1 : sortedData.value.findIndex(row => rowKeyOf(row) === target)
+  if (index < 0) {
+    return false
+  }
+  settingPage = true
+  current.value = Math.floor(index / props.perPage) + 1
+  nextTick(() => {
+    settingPage = false
+  })
+  return true
+}
+
+// After mount too, so a table opened to reveal a row does.
+watch(() => props.revealKey, async (key) => {
+  const target = props.highlightRowKey
+  if (key == null || target == null || !props.rowKey || props.groupKey || props.scroll) {
+    return
+  }
+  if (query.value && !sortedData.value.some(row => rowKeyOf(row) === target)
+    && (tableReport.value?.data ?? []).some(row => rowKeyOf(row) === target)) {
+    // Its page is set after the filter's own reset to the first page.
+    searchQuery.value = ''
+    await nextTick()
+  }
+  if (showHighlightPage()) {
+    keepHighlightPage = true
+    await nextTick()
+    const rowEl = table.value?.querySelector('tbody tr.cal-datagrid-row-highlighted')
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    rowEl?.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' })
+    flash(target)
+  }
+  emit('revealed')
+}, { immediate: true, flush: 'post' })
 </script>
 
 <style scoped lang="scss">
@@ -999,6 +1396,145 @@ const filterStatus = computed(() => {
 .cal-datagrid-shim-group {
   display: flex;
   font-weight: 600;
+}
+
+// Row actions: the menu's button leading the first cell, and a pointer on
+// rows that open it.
+.cal-datagrid-row-menu-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.cal-datagrid-row-menu-trigger,
+.cal-datagrid-row-menu-spacer {
+  flex: 0 0 1.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.cal-datagrid-row-menu-spacer {
+  display: inline-block;
+}
+
+.cal-datagrid-row-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--bulma-radius-small);
+  background: none;
+  color: var(--bulma-text-weak);
+  cursor: pointer;
+
+  &:hover,
+  &[aria-expanded="true"] {
+    background: var(--bulma-scheme-main-ter);
+    color: var(--bulma-text-strong);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--bulma-primary);
+    outline-offset: 1px;
+  }
+}
+
+.cal-datagrid-shim-menu {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.cal-report-table tr.cal-datagrid-row-actionable {
+  cursor: pointer;
+}
+
+// The row the map pointed at: unmissable, in a warm color no other table
+// state uses, with a bar down its leading edge. It flashes as it comes into
+// view.
+$cal-highlight-fill: #fff3bf;
+$cal-highlight-flash: #ffd43b;
+$cal-highlight-edge: #e8a200;
+
+.cal-report-table {
+  tr.cal-datagrid-row-highlighted td,
+  tr.cal-datagrid-row-highlighted:hover td {
+    background: $cal-highlight-fill;
+    border-top: 2px solid $cal-highlight-edge;
+    border-bottom: 2px solid $cal-highlight-edge;
+    font-weight: 600;
+  }
+
+  tr.cal-datagrid-row-highlighted td:first-child {
+    position: relative;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 6px;
+      background: $cal-highlight-edge;
+    }
+  }
+
+  tr.cal-datagrid-row-flash td {
+    animation: cal-datagrid-row-flash 0.6s ease-in-out 4 alternate;
+  }
+}
+
+@keyframes cal-datagrid-row-flash {
+  from {
+    background: $cal-highlight-fill;
+  }
+  to {
+    background: $cal-highlight-flash;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-report-table tr.cal-datagrid-row-flash td {
+    animation: none;
+  }
+}
+
+// The menu, placed in the window by the row it was opened from.
+.cal-datagrid-row-menu {
+  position: fixed;
+  z-index: 2000;
+  min-width: 10rem;
+  padding: 0.25rem 0;
+  border: 1px solid var(--bulma-border);
+  border-radius: var(--bulma-radius);
+  background: var(--bulma-scheme-main);
+  box-shadow: 0 0.5em 1em -0.125em rgba(10, 10, 10, 0.15);
+}
+
+.cal-datagrid-row-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.9rem;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--bulma-text-strong);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover,
+  &:focus {
+    background: var(--bulma-scheme-main-ter);
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--bulma-primary);
+    outline-offset: -2px;
+  }
 }
 
 // Fix pagination element ordering

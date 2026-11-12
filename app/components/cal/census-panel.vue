@@ -26,10 +26,16 @@
         </div>
       </div>
 
+      <!-- Small buttons with icons, as the census details actions and the map
+           popup's are. -->
       <div class="cal-census-panel-actions">
-        <a href="#" @click.prevent="$emit('viewDetails')">
-          View census details for this area →
-        </a>
+        <cat-button size="small" icon-left="chart-box-outline" @click="$emit('viewDetails')">
+          View census details
+        </cat-button>
+        <!-- Its row in the Reports tab's Stops (Aggregated) table. -->
+        <cat-button v-if="inTable" size="small" icon-left="table-eye" @click="$emit('seeInTable')">
+          See in data table
+        </cat-button>
       </div>
 
       <cat-tabs v-model="activeTab" expanded>
@@ -104,11 +110,14 @@ const props = defineProps<{
   layerLabel?: string
   geography?: CensusPanelGeography | null
   analysisArea?: CensusPanelAnalysisArea | null
+  // A row of the Stops (Aggregated) table, which "See in data table" opens.
+  inTable?: boolean
 }>()
 
 defineEmits<{
   close: []
   viewDetails: []
+  seeInTable: []
 }>()
 
 const { choroplethElement, unitSystem } = useScenarioDisplay()
@@ -259,13 +268,10 @@ function cell (values: CensusPanelValues | null | undefined, col: CensusColumnDe
 }
 
 .cal-census-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-bottom: 8px;
-
-  a {
-    color: inherit;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
 }
 
 .cal-census-panel-note {

@@ -31,6 +31,7 @@ const emit = defineEmits([
   'openTransfers',
   'popupShown',
   'popupClosed',
+  'seeInTable',
 ])
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: () => [] })
@@ -48,6 +49,8 @@ const clusterLineFeatures = defineModel<Feature[]>('clusterLineFeatures', { defa
 const clusterMarkers = defineModel<{ id: string, point: Point, colors: string[] }[]>('clusterMarkers', { default: () => [] })
 const markers = defineModel<MarkerFeature[]>('markers', { default: () => [] })
 const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: () => [] })
+// The selected aggregation area, highlighted on top as a popup's feature is.
+const selectedAreaFeatures = defineModel<Feature[]>('selectedAreaFeatures', { default: () => [] })
 const mapClass = defineModel<string>('mapClass', { default: 'short' })
 const center = defineModel<Point>('center', { default: () => ({ lon: -122.4194, lat: 37.7749 }) })
 const zoom = defineModel<number>('zoom', { default: 12 })
@@ -65,6 +68,10 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Features to fit to when fitOverlayKey changes
   fitTargetFeatures?: Feature[]
+  // One feature to bring into view, clear of the sidebar, when focusKey
+  // changes: a table row's, from "See on map"
+  focusFeatures?: Feature[]
+  focusKey?: number
 }>()
 
 const { unitSystem, isAllDayMode } = useScenarioDisplay()
@@ -73,6 +80,8 @@ const { unitSystem, isAllDayMode } = useScenarioDisplay()
 const skipUpdateStages = new Set(['departures'])
 
 let map: (maplibre.Map | undefined) = undefined
+// Selected features, and the selected aggregation area, draw in this color.
+const HIGHLIGHT_COLOR = '#00FF00'
 const markerLayer = ref<maplibre.Marker[]>([])
 const clusterMarkerLayer = ref<maplibre.Marker[]>([])
 let geoHoverPopup: maplibre.Popup | undefined
@@ -113,6 +122,10 @@ watch(() => markers.value, (v) => {
 
 watch(() => popupFeatures.value, (v) => {
   drawPopupFeatures(v)
+})
+
+watch(() => selectedAreaFeatures.value, (v) => {
+  setSourceData('selectedArea', v, isPolygon)
 })
 
 // Skip feature updates during heavy loading stages (departures) to prevent browser crashes
@@ -183,6 +196,34 @@ watch(() => props.fitOverlayKey, () => {
   }
 })
 
+watch(() => props.focusKey, () => {
+  const features = props.focusFeatures
+  if (!map || !features?.length) {
+    return
+  }
+  fitFeatures(features, focusPadding(features.every(f => f.geometry.type === 'Point')))
+})
+
+// Room for the popup and the sidebar (legend, panels) on the right, within
+// what a small map can spare. A stop or a cluster sits high, its popup, which
+// for a cluster is tall, opening below it; a line or an area keeps more of
+// the height, its popup over its middle.
+function focusPadding (points: boolean): maplibre.FitBoundsOptions {
+  const canvas = map?.getCanvas()
+  const w = canvas?.clientWidth || 800
+  const h = canvas?.clientHeight || 600
+  return {
+    duration: 600,
+    maxZoom: 16,
+    padding: {
+      top: Math.round(points ? Math.min(100, h * 0.15) : Math.min(260, h * 0.35)),
+      bottom: Math.round(points ? Math.min(460, h * 0.6) : Math.min(40, h * 0.06)),
+      left: Math.round(Math.min(80, w * 0.1)),
+      right: Math.round(Math.min(470, w * 0.4)),
+    },
+  }
+}
+
 watch(() => props.fitBoundsKey, () => {
   if (props.initialBounds && map) {
     const { sw, ne } = props.initialBounds
@@ -232,19 +273,25 @@ function initMap () {
   choroplethTooltip.style.display = 'none'
   map.getContainer().appendChild(choroplethTooltip)
   drawMarkers(markers.value)
+  // The initial view, set here rather than on load: the camera needs no
+  // style, and load can come late (without basemap tiles, not until the first
+  // move), when it would undo a view set since.
+  if (props.panelWidth) {
+    applyPanelPadding(props.panelWidth)
+  }
+  if (props.initialBounds) {
+    const { sw, ne } = props.initialBounds
+    map.fitBounds([[sw.lon, sw.lat], [ne.lon, ne.lat]], { duration: 0, padding: 100 })
+  }
   map.on('load', () => {
-    if (props.panelWidth) {
-      applyPanelPadding(props.panelWidth)
-    }
-    if (props.initialBounds) {
-      const { sw, ne } = props.initialBounds
-      map?.fitBounds([[sw.lon, sw.lat], [ne.lon, ne.lat]], { duration: 0, padding: 100 })
-    }
     createSources()
     createLayers()
+    // A popup opened before the sources existed gets its highlight now.
+    updateHighlight(currentPopupFeatures[currentPopupIndex])
     updateOverlayFeatures(overlayFeatures.value)
     updateStopBufferFeatures(stopBufferFeatures.value)
     updateChoroplethFeatures(choroplethFeatures.value)
+    setSourceData('selectedArea', selectedAreaFeatures.value, isPolygon)
     updateSelectableGeographies(selectableGeographies.value)
     updateFeatures(features.value)
     updateFlexFeatures(flexFeatures.value)
@@ -456,6 +503,10 @@ function createSources () {
   })
   // Highlight source for selected features
   map?.addSource('highlight', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
+  map?.addSource('selectedArea', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
@@ -689,14 +740,36 @@ function createLayers () {
     }
   })
 
+  // The selected aggregation area, in the highlight color, over the routes
+  // and stops so it reads as selected; a light fill leaves its shade visible.
+  map?.addLayer({
+    id: 'selected-area-fill',
+    type: 'fill',
+    source: 'selectedArea',
+    paint: {
+      'fill-color': HIGHLIGHT_COLOR,
+      'fill-opacity': 0.12,
+    }
+  })
+  map?.addLayer({
+    id: 'selected-area-outline',
+    type: 'line',
+    source: 'selectedArea',
+    paint: {
+      'line-color': HIGHLIGHT_COLOR,
+      'line-width': 4,
+      'line-opacity': 1.0,
+    }
+  })
+
   // Highlight layers for selected features (rendered on top)
   map?.addLayer({
     id: 'highlight-polygon',
     type: 'fill',
     source: 'highlight',
-    filter: ['==', ['geometry-type'], 'Polygon'],
+    filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
     paint: {
-      'fill-color': '#00FF00',
+      'fill-color': HIGHLIGHT_COLOR,
       'fill-opacity': 0.2,
     }
   })
@@ -704,9 +777,9 @@ function createLayers () {
     id: 'highlight-polygon-outline',
     type: 'line',
     source: 'highlight',
-    filter: ['==', ['geometry-type'], 'Polygon'],
+    filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
     paint: {
-      'line-color': '#00FF00',
+      'line-color': HIGHLIGHT_COLOR,
       'line-width': 4,
       'line-opacity': 1.0,
     }
@@ -715,9 +788,9 @@ function createLayers () {
     id: 'highlight-line',
     type: 'line',
     source: 'highlight',
-    filter: ['==', ['geometry-type'], 'LineString'],
+    filter: ['in', ['geometry-type'], ['literal', ['LineString', 'MultiLineString']]],
     paint: {
-      'line-color': '#00FF00',
+      'line-color': HIGHLIGHT_COLOR,
       'line-width': 6,
       'line-opacity': 1.0,
     }
@@ -728,7 +801,7 @@ function createLayers () {
     source: 'highlight',
     filter: ['==', ['geometry-type'], 'Point'],
     paint: {
-      'circle-color': '#00FF00',
+      'circle-color': HIGHLIGHT_COLOR,
       'circle-radius': 14,
       'circle-opacity': 1.0,
       'circle-stroke-color': '#ffffff',
@@ -839,7 +912,7 @@ function updateClusterLines (features: Feature[]) {
   setSourceData('clusterLines', features)
 }
 
-function fitFeatures (features: Feature[]) {
+function fitFeatures (features: Feature[], options: maplibre.FitBoundsOptions = { duration: 0, padding: 20, maxZoom: 14 }) {
   const coords = []
   for (const f of features) {
     const g = f.geometry
@@ -875,11 +948,7 @@ function fitFeatures (features: Feature[]) {
     const bounds = coords.reduce(function (bounds, coord) {
       return bounds.extend(coord)
     }, new maplibre.LngLatBounds(coords[0], coords[0]))
-    map?.fitBounds(bounds, {
-      duration: 0,
-      padding: 20,
-      maxZoom: 14
-    })
+    map?.fitBounds(bounds, options)
   }
 }
 
@@ -915,10 +984,14 @@ function updateHighlight (popupFeature: PopupFeature | undefined) {
   let matchingFeature: Feature | undefined
 
   if (sourceLayer === 'flexPolygons') {
-    // For flex features, match by location_id in properties (since that's what we use as featureId)
+    // For flex features, match by location_id in properties (since that's
+    // what we use as featureId), and by feed when the popup has it, as a
+    // location_id is unique only within its feed.
+    const feed = popupFeature.data?.feed_onestop_id
     matchingFeature = flexFeatures.value.find(f =>
-      f.properties?.location_id?.toString() === featureId.toString()
-      || f.id?.toString() === featureId.toString()
+      (f.properties?.location_id?.toString() === featureId.toString()
+        || f.id?.toString() === featureId.toString())
+      && (!feed || f.properties?.feed_onestop_id === feed)
     )
   } else if (sourceLayer === 'lines') {
     matchingFeature = features.value.find(f => f.id?.toString() === featureId.toString() && (f.geometry?.type === 'LineString' || f.geometry?.type === 'MultiLineString'))
@@ -1030,6 +1103,7 @@ function showPopupAtIndex (index: number) {
         featureType: feature.featureType!,
         featureId: feature.featureId || '',
         sourceLayer: feature.sourceLayer || '',
+        inTable: feature.inTable,
         data: feature.data!,
       },
       currentIndex: currentPopupIndex,
@@ -1051,6 +1125,11 @@ function showPopupAtIndex (index: number) {
         // highlighted, and a cluster stays selected, so the map still shows
         // what the panel describes.
         removePopup()
+      },
+      // The popup stays, so coming back to the map finds the feature still
+      // selected.
+      onSeeInTable: () => {
+        emit('seeInTable', feature)
       },
       onOpenTransfers: (featureType: string, featureId: string | number) => {
         emit('openTransfers', featureType, featureId)
