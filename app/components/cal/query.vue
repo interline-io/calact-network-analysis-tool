@@ -736,6 +736,10 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string,
   // Convert `options` into Array with `value` and `label` props. The dropdown
   // shows `name` with `layerName` as a tag; selected tags and screen reader
   // announcements use `label`, which keeps the layer in parentheses.
+  // Tracts and block groups show a name built from the GEOID, but the server
+  // searches the name TIGER stores ("51.02" for a tract, none for a block
+  // group), so typing the shown name finds nothing. They can still be picked
+  // on the map.
   const results = []
   for (const geo of options.values()) {
     const name = censusGeographyStateName(geo)

@@ -1,25 +1,13 @@
 import { geoidFips } from './census-buffer'
+import { CENSUS_LAYER_SIZE_ORDER } from './constants'
 
-// Census layers from smallest to largest, the order the layer dropdowns list
-// them in (#468). Layers not named here follow, alphabetically by label.
-const CENSUS_LAYER_SIZE_ORDER = [
-  'bg',
-  'tract',
-  'place',
-  'county',
-  'uac20',
-  'fta-uac20-nonurban',
-  'cbsa',
-  'csa',
-  'state',
-]
-
+// Sorts layer options in place by CENSUS_LAYER_SIZE_ORDER.
 export function sortCensusLayerOptions<T extends { value: string, label: string }> (options: T[]): T[] {
   const rank = (value: string) => {
     const i = CENSUS_LAYER_SIZE_ORDER.indexOf(value)
     return i < 0 ? CENSUS_LAYER_SIZE_ORDER.length : i
   }
-  return [...options].sort((a, b) => rank(a.value) - rank(b.value) || a.label.localeCompare(b.label))
+  return options.sort((a, b) => rank(a.value) - rank(b.value) || a.label.localeCompare(b.label))
 }
 
 // A tract code as the Census writes it: `005102` is 51.02, `010100` is 101.

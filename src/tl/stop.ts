@@ -4,7 +4,6 @@ import {
   type CensusGeographyData,
   deriveCensusRow,
   apportionBuffer,
-  censusGeographyName,
   geographiesForAggregationRow,
   HIERARCHICAL_TIGER_LAYERS,
 } from '~~/src/core'
@@ -194,7 +193,7 @@ function seedAggregateRow (geoid: string, layerName: string, name: string): Stop
   return {
     geoid,
     layer_name: layerName,
-    name: censusGeographyName(layerName, geoid, name),
+    name,
     visits_count: 0,
     stops_count: new Set<number>(),
     routes_count: new Set<number>(),

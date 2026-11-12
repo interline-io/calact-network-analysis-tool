@@ -2,7 +2,7 @@
 // only on the stop ids, so it runs alongside routes and departures rather than
 // gating them the way riding on the stop query did.
 
-import { chunkArray, type GraphQLClient } from '~~/src/core'
+import { censusGeographyName, chunkArray, type GraphQLClient } from '~~/src/core'
 import { stopCensusQuery, type StopCensusGeography } from '~~/src/tl'
 import { phaseQueue, type PhaseEmit, type PhaseOpts } from './common'
 
@@ -44,7 +44,10 @@ export async function runStopCensusPhase (
       console.warn(`[StopCensus] asked for ${stopIds.length} stops, got ${stops.length} — results may be truncated`)
     }
     const entries: [number, StopCensusGeography[]][] = stops
-      .map(stop => [stop.id, stop.census_geographies || []])
+      .map(stop => [stop.id, (stop.census_geographies || []).map(g => ({
+        ...g,
+        name: censusGeographyName(g.layer_name, g.geoid, g.name),
+      }))])
     await emit({ ...progressEvent(), partialData: { stopCensusGeographies: entries } })
   }
 

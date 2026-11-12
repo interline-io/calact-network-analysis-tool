@@ -28,6 +28,10 @@ describe('runBufferPasses (integration)', () => {
     }
   `
 
+  // TIGER stores a tract's name as its bare number; the rows carry the
+  // Census's long form, built from the GEOID (#468).
+  const TRACT_NAME = /^Census Tract \d+(\.\d\d)?$/
+
   async function discoverStopIds (limit = 5): Promise<number[]> {
     const result = await client.query<{ stops: { id: number }[] }>(
       discoverStopIdsQuery, { limit },
@@ -80,6 +84,9 @@ describe('runBufferPasses (integration)', () => {
         seenStopIds.add(id)
         expect(geos.length).toBeGreaterThan(0)
         expect(geos[0]!.geometryArea).toBeGreaterThan(0)
+        for (const g of geos) {
+          expect(g.name).toMatch(TRACT_NAME)
+        }
       }
     }
     expect([...seenStopIds].sort()).toEqual([...stopIds].sort())
@@ -89,6 +96,9 @@ describe('runBufferPasses (integration)', () => {
     expect(aggEvent).toBeDefined()
     const aggTracts = aggEvent!.partialData!.aggregationBufferGeographies!
     expect(aggTracts.length).toBeGreaterThan(0)
+    for (const g of aggTracts) {
+      expect(g.name).toMatch(TRACT_NAME)
+    }
   })
 
   it('aggregation total ≤ sum of per-stop tracts (union dedupes overlaps)', async () => {

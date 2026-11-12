@@ -13,7 +13,7 @@ describe('sortCensusLayerOptions', () => {
       { value: 'cd119', label: 'Congressional District (119th)' },
       { value: 'place', label: 'City / Place' },
       { value: 'tract', label: 'Census Tract' },
-      { value: 'fta-uac20-nonurban', label: 'Fta-Uac20-Nonurban' },
+      { value: 'fta-uac20-nonurban', label: 'Non-urban Area (FTA)' },
       { value: 'bg', label: 'Block Group' },
     ]
     expect(sortCensusLayerOptions(options).map(o => o.value)).toEqual([
@@ -29,12 +29,6 @@ describe('sortCensusLayerOptions', () => {
       'cd119',
       'zcta520',
     ])
-  })
-
-  it('leaves its input in place', () => {
-    const options = [{ value: 'state', label: 'State' }, { value: 'bg', label: 'Block Group' }]
-    sortCensusLayerOptions(options)
-    expect(options[0]!.value).toBe('state')
   })
 })
 
