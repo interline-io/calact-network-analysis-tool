@@ -13,7 +13,6 @@ describe('sortCensusLayerOptions', () => {
       { value: 'cd119', label: 'Congressional District (119th)' },
       { value: 'place', label: 'City / Place' },
       { value: 'tract', label: 'Census Tract' },
-      { value: 'fta-uac20-nonurban', label: 'Non-urban Area (FTA)' },
       { value: 'bg', label: 'Block Group' },
     ]
     expect(sortCensusLayerOptions(options).map(o => o.value)).toEqual([
@@ -22,7 +21,6 @@ describe('sortCensusLayerOptions', () => {
       'place',
       'county',
       'uac20',
-      'fta-uac20-nonurban',
       'cbsa',
       'csa',
       'state',

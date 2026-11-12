@@ -391,7 +391,6 @@ export const CENSUS_LAYER_SIZE_ORDER = [
   'place',
   'county',
   'uac20',
-  'fta-uac20-nonurban',
   'cbsa',
   'csa',
   'state',

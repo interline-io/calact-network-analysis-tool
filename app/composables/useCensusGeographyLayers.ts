@@ -20,18 +20,17 @@ export interface UseCensusGeographyLayersReturn {
   censusGeographiesSelected: ComputedRef<CensusGeography[]>
 }
 
-// The layers tlv2's TIGER loader builds, plus the FTA non-urban layer (#484).
-// Any other layer gets a title-cased form of its name.
+// The layers tlv2's TIGER loader builds. Any other layer gets a title-cased
+// form of its name.
 const CENSUS_LAYER_DISPLAY_NAMES: Record<string, string> = {
-  'bg': 'Block Group',
-  'tract': 'Census Tract',
-  'place': 'City / Place',
-  'county': 'County',
-  'uac20': 'Urban Area (2020)',
-  'fta-uac20-nonurban': 'Non-urban Area (FTA)',
-  'cbsa': 'Core-Based Statistical Area (CBSA)',
-  'csa': 'Combined Statistical Area (CSA)',
-  'state': 'State',
+  bg: 'Block Group',
+  tract: 'Census Tract',
+  place: 'City / Place',
+  county: 'County',
+  uac20: 'Urban Area (2020)',
+  cbsa: 'Core-Based Statistical Area (CBSA)',
+  csa: 'Combined Statistical Area (CSA)',
+  state: 'State',
 }
 
 function formatCensusLayerLabel (_dsName: string, layerName: string): string {
