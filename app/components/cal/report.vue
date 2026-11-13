@@ -55,7 +55,7 @@
     </div>
 
     <!-- Buffer apportionment is only rolled up for state/county/tract/bg — for
-         place/cbsa/csa/uac20 we'd need server-side geographic containment
+         place/cbsa/csa/uac20/rural we'd need server-side geographic containment
          that doesn't exist yet. Surface this honestly rather than silently
          showing un-apportioned values. -->
     <cat-msg
