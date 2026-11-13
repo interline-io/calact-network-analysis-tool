@@ -8,7 +8,7 @@ import {
 
 // FIPS-prefix-rollup-safe layers, coarse→fine: a finer geoid's FIPS digits start with
 // its parent's (block group nests in tract, tract in county, county in state), so
-// geoidFips prefix-matching rolls them up safely. Place/cbsa/csa/uac/fta-uac20-nonurban
+// geoidFips prefix-matching rolls them up safely. Place/cbsa/csa/uac20/rural
 // don't nest by FIPS and need server-side geometric containment (see #370).
 export const HIERARCHICAL_TIGER_LAYERS = new Set(['state', 'county', 'tract', 'bg'])
 

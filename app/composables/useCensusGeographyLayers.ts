@@ -20,16 +20,18 @@ export interface UseCensusGeographyLayersReturn {
   censusGeographiesSelected: ComputedRef<CensusGeography[]>
 }
 
-// The layers tlv2's TIGER loader builds. Any other layer gets a title-cased
-// form of its name.
+// The layers tlv2's TIGER loader builds. Urban and rural areas follow the Census
+// Bureau's definition: urban areas of any size, and everything outside them. Any
+// other layer gets a title-cased form of its name.
 const CENSUS_LAYER_DISPLAY_NAMES: Record<string, string> = {
   bg: 'Block Group',
   tract: 'Census Tract',
   place: 'City / Place',
   county: 'County',
-  uac20: 'Urban Area (2020)',
+  uac20: 'Urban Area (2020 Census)',
   cbsa: 'Core-Based Statistical Area (CBSA)',
   csa: 'Combined Statistical Area (CSA)',
+  rural: 'Rural Area (2020 Census)',
   state: 'State',
 }
 

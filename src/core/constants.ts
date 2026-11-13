@@ -372,15 +372,15 @@ export const TRANSFER_UNPICKED_COLOR = '#5b6470'
 export const KM_PER_DEGREE = 111.32
 
 export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
-  'state': { singular: 'State', plural: 'states' },
-  'county': { singular: 'County', plural: 'counties' },
-  'tract': { singular: 'Census Tract', plural: 'census tracts' },
-  'bg': { singular: 'Block Group', plural: 'block groups' },
-  'place': { singular: 'City/Place', plural: 'cities/places' },
-  'cbsa': { singular: 'Metropolitan Area', plural: 'metropolitan areas' },
-  'csa': { singular: 'Combined Statistical Area', plural: 'combined statistical areas' },
-  'uac20': { singular: 'Urban Area', plural: 'urban areas' },
-  'fta-uac20-nonurban': { singular: 'Non-urban Area', plural: 'non-urban areas' },
+  state: { singular: 'State', plural: 'states' },
+  county: { singular: 'County', plural: 'counties' },
+  tract: { singular: 'Census Tract', plural: 'census tracts' },
+  bg: { singular: 'Block Group', plural: 'block groups' },
+  place: { singular: 'City/Place', plural: 'cities/places' },
+  cbsa: { singular: 'Metropolitan Area', plural: 'metropolitan areas' },
+  csa: { singular: 'Combined Statistical Area', plural: 'combined statistical areas' },
+  uac20: { singular: 'Urban Area', plural: 'urban areas' },
+  rural: { singular: 'Rural Area', plural: 'rural areas' },
 }
 
 // Census layers from smallest to largest, the order the layer dropdowns list
@@ -393,5 +393,6 @@ export const CENSUS_LAYER_SIZE_ORDER = [
   'uac20',
   'cbsa',
   'csa',
+  'rural',
   'state',
 ]

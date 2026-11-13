@@ -34,7 +34,8 @@ export function censusGeographyName (layer: string | undefined, geoid: string, n
 }
 
 // A geography's name with its state, as the boundary pickers show it:
-// "Multnomah, Oregon".
+// "Multnomah, Oregon". A name that already ends with its state, as a state's own
+// ("Oregon") or a rural area's ("Rural Oregon") does, doesn't repeat it.
 export function censusGeographyStateName (geo: {
   geoid: string
   name?: string | null
@@ -42,5 +43,9 @@ export function censusGeographyStateName (geo: {
   adm1_name?: string | null
 }): string {
   const name = censusGeographyName(geo.layer?.name, geo.geoid, geo.name)
-  return geo.adm1_name ? `${name}, ${geo.adm1_name}` : name
+  const state = geo.adm1_name
+  if (!state || name === state || name.endsWith(` ${state}`)) {
+    return name
+  }
+  return `${name}, ${state}`
 }

@@ -11,6 +11,7 @@ describe('sortCensusLayerOptions', () => {
       { value: 'state', label: 'State' },
       { value: 'county', label: 'County' },
       { value: 'cd119', label: 'Congressional District (119th)' },
+      { value: 'rural', label: 'Rural Area (2020 Census)' },
       { value: 'place', label: 'City / Place' },
       { value: 'tract', label: 'Census Tract' },
       { value: 'bg', label: 'Block Group' },
@@ -23,6 +24,7 @@ describe('sortCensusLayerOptions', () => {
       'uac20',
       'cbsa',
       'csa',
+      'rural',
       'state',
       'cd119',
       'zcta520',
@@ -75,6 +77,16 @@ describe('censusGeographyStateName', () => {
       layer: { name: 'bg' },
       adm1_name: 'Oregon',
     })).toBe('Block Group 1, Census Tract 51.02, Oregon')
+  })
+
+  it('does not repeat a state the name already ends with', () => {
+    expect(censusGeographyStateName({ geoid: '0400000US41', name: 'Oregon', layer: { name: 'state' }, adm1_name: 'Oregon' })).toBe('Oregon')
+    expect(censusGeographyStateName({ geoid: 'rural:0400000US41', name: 'Rural Oregon', layer: { name: 'rural' }, adm1_name: 'Oregon' })).toBe('Rural Oregon')
+  })
+
+  it('keeps the state for a name that only starts with it', () => {
+    expect(censusGeographyStateName({ geoid: '1600000US4155200', name: 'Oregon City', layer: { name: 'place' }, adm1_name: 'Oregon' })).toBe('Oregon City, Oregon')
+    expect(censusGeographyStateName({ geoid: '1600000US2036000', name: 'Kansas City', layer: { name: 'place' }, adm1_name: 'Kansas' })).toBe('Kansas City, Kansas')
   })
 
   it('leaves the state off when there is none', () => {
