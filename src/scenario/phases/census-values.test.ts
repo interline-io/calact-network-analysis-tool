@@ -117,8 +117,7 @@ describe('runCensusValuesPhase stop-buffer clipping', () => {
       [queryAreaResponse(), clipResponse()],
     )
     const pass1 = query.mock.calls[0]![1]
-    expect(pass1.stopIds).toEqual([])
-    expect(pass1.stopBufferRadius).toBeUndefined()
+    expect(pass1.stopBuffer).toBeNull()
     // Pass 2 targets the same dataset and layer as pass 1.
     const pass2 = query.mock.calls[1]![1]
     expect(pass2.geoDatasetName).toBe(pass1.geoDatasetName)

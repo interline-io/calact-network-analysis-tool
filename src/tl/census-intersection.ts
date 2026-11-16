@@ -73,8 +73,7 @@ query GeographyIntersection(
   $bbox: BoundingBox,
   $within: Polygon,
   $geographyIds: [Int!],
-  $stopIds: [Int!],
-  $stopBufferRadius: Float,
+  $stopBuffer: StopBuffer,
   $includeIntersectionGeometry: Boolean = false
 ) {
   census_datasets(where: {name: $geoDatasetName}) {
@@ -90,7 +89,7 @@ query GeographyIntersection(
           bbox: $bbox,
           within: $within,
           geography_ids: $geographyIds,
-          stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}
+          stop_buffer: $stopBuffer
         }
       }
     ) {
@@ -318,13 +317,15 @@ async function queryEachPass<T> (config: QueryArea, run: (pass: ReturnType<typeo
 export async function fetchCensusIntersection (
   config: FetchCensusIntersectionConfig,
 ): Promise<CensusGeographyFeature[]> {
+  // Without stops the buffer is left out, so the query area applies alone:
+  // the server matches no geographies for an empty buffer.
+  const stopIds = config.stopIds ? Array.from(config.stopIds) : []
   const variables = {
     geoDatasetName: config.geoDatasetName,
     tableDatasetName: config.tableDatasetName,
     tableNames: config.tableNames,
     layer: config.geoDatasetLayer,
-    stopBufferRadius: config.stopBufferRadius,
-    stopIds: config.stopIds ? Array.from(config.stopIds) : [],
+    stopBuffer: stopIds.length > 0 ? { stop_ids: stopIds, radius: config.stopBufferRadius } : null,
     includeIntersectionGeometry: config.includeIntersectionGeometry || false,
   }
   const results = await queryEachPass(config, pass =>
