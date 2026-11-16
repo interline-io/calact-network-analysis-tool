@@ -60,8 +60,7 @@ describe('fetchCensusIntersection variables', () => {
     await fetchCensusIntersection({ ...base, client, geographyIds: GEOGRAPHY_IDS, stopIds: [7, 8], stopBufferRadius: 400 })
     const vars = query.mock.calls[0]![1]
     expect(vars.geographyIds).toEqual(GEOGRAPHY_IDS)
-    expect(vars.stopIds).toEqual([7, 8])
-    expect(vars.stopBufferRadius).toBe(400)
+    expect(vars.stopBuffer).toEqual({ stop_ids: [7, 8], radius: 400 })
   })
 })
 
